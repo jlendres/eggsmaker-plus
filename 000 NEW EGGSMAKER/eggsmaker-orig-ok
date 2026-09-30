@@ -101,7 +101,7 @@ run_in_terminal() {
 LANG_SYS="${LANG:-es}"
 
 if [[ "$LANG_SYS" =~ ^es ]]; then
-  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker</b></span>\n<big>Herramientas de Administración de Sistema</big>\n"
+  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker</b></span>\n<big>Suite integrada para administración de Penguins Eggs y Paquetes</big>\n"
   TITLE_MAIN="Eggsmaker - Herramientas de Sistema"
   OPT_1_NAME="1. Generar ISO (Penguins Eggs)"
   OPT_1_DESC="Crear imagen ISO personalizada o clon del sistema"
@@ -115,6 +115,7 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   S1_TITLE="Eggsmaker - Generador ISO"
   S1_CONF_CFG="¿Desea realizar cambios en la configuración de eggs (eggs config)?"
   S1_CONF_CLONE="¿Desea realizar un clon del sistema (--clone)?"
+  S1_MSG_CLEAN="Limpiando y preparando el entorno..."
   S1_DEST_TITLE="Seleccione la carpeta de destino para la ISO"
   S1_COPY_OMIT="¿Desea omitir la copia de la ISO?"
   S1_COPY_AGAIN="¿Desea realizar otra copia a un destino distinto?"
@@ -144,6 +145,7 @@ else
   S1_TITLE="Eggsmaker - ISO Generator"
   S1_CONF_CFG="Do you want to edit eggs configuration (eggs config)?"
   S1_CONF_CLONE="Do you want to create a system clone (--clone)?"
+  S1_MSG_CLEAN="Cleaning up and preparing environment..."
   S1_DEST_TITLE="Select destination directory for the ISO"
   S1_COPY_OMIT="Do you want to skip copying the ISO?"
   S1_COPY_AGAIN="Do you want to copy the ISO to another location?"
@@ -174,11 +176,13 @@ run_script_1() {
 #!/bin/bash
 set -euo pipefail
 
+# Asegurar permisos en la aplicación base del sistema
 LAUNCHER_SYS="/usr/share/applications/install-system.desktop"
 if [ -f "$LAUNCHER_SYS" ]; then
   chmod +x "$LAUNCHER_SYS"
 fi
 
+# Detectar escritorios de usuarios (incluyendo usuario live) y aplicar confianza
 for desktop_dir in /home/*/[D|d]esktop /root/[D|d]esktop; do
   if [ -d "$desktop_dir" ]; then
     TARGET_LAUNCHER="$desktop_dir/install-system.desktop"
@@ -241,35 +245,9 @@ EOF
     fi
 
     if [[ -n "$ISO_FILE" ]]; then
-      FILENAME=$(basename "$ISO_FILE")
-
-      run_in_terminal "bash -c '
-        echo -e \"\e[1;36m======================================================================\e[0m\"
-        echo -e \"\e[1;32m  COPIANDO ARCHIVO ISO\e[0m\"
-        echo -e \"\e[1;36m======================================================================\e[0m\"
-        echo -e \"\e[1;33mOrigen :\e[0m $FILENAME\"
-        echo -e \"\e[1;33mDestino:\e[0m $DESTINO\"
-        echo -e \"\e[1;36m----------------------------------------------------------------------\e[0m\n\"
-
-        rsync --info=progress2 -h \"$ISO_FILE\" \"$DESTINO/\"
-
-        echo -e \"\n\e[1;32m✔ Copia completada con éxito.\e[0m\"
-        sleep 2
-      '"
+      rsync --progress -h "$ISO_FILE" "$DESTINO/" | yad --window-icon="$ICON_PATH" --progress --title="Copiando ISO" --pulsate --auto-close
     else
-      run_in_terminal "bash -c '
-        echo -e \"\e[1;36m======================================================================\e[0m\"
-        echo -e \"\e[1;32m  COPIANDO ARTEFACTOS DE LA ISO\e[0m\"
-        echo -e \"\e[1;36m======================================================================\e[0m\"
-        echo -e \"\e[1;33mOrigen :\e[0m $ISO_DIR/\"
-        echo -e \"\e[1;33mDestino:\e[0m $DESTINO/\"
-        echo -e \"\e[1;36m----------------------------------------------------------------------\e[0m\n\"
-
-        rsync --info=progress2 -ah \"$ISO_DIR/\" \"$DESTINO/\"
-
-        echo -e \"\n\e[1;32m✔ Copia completada con éxito.\e[0m\"
-        sleep 2
-      '"
+      rsync --progress -ah "$ISO_DIR"/ "$DESTINO"/ | yad --window-icon="$ICON_PATH" --progress --title="Copiando Artefactos" --pulsate --auto-close
     fi
 
     if ! yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_COPY_AGAIN" --button="Sí:0" --button="No:1"; then
