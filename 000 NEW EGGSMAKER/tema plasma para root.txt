@@ -1,0 +1,4 @@
+tema plasma para root
+sudo mv /root/.config/kdeglobals /root/.config/kdeglobals.bak && sudo ln -s ~/.config/kdeglobals /root/.config/kdeglobals
+
+sudo ln -s ~/.config/kdeglobals /root/.config/kdeglobals

@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Nombre del archivo de respaldo
+BACKUP_NAME="kde_customization_$(date +%Y%m%d).tar.gz"
+
+# Directorios y archivos críticos
+FILES=(
+    ".config/plasma-org.kde.plasma.desktop-appletsrc" # Paneles y widgets
+    ".config/plasmarc"                                # Estado general de Plasma
+    ".config/kdeglobals"                             # Colores, fuentes, iconos
+    ".config/kscreenlockerrc"                        # Bloqueo de pantalla
+    ".config/kwinrc"                                 # Comportamiento de ventanas
+    ".config/gtk-3.0"                                # Compatibilidad GTK
+    ".config/gtk-4.0"                                # Compatibilidad GTK
+    ".local/share/plasma"                            # Plasmoides y temas de escritorio
+    ".local/share/icons"                             # Iconos personalizados
+    ".local/share/themes"                            # Temas de aplicaciones
+    ".local/share/aurorae"                           # Decoraciones de ventanas
+    ".local/share/color-schemes"                     # Esquemas de color
+)
+
+echo "--- Iniciando respaldo de KDE Plasma ---"
+
+# Crear el paquete
+tar -czvf "$BACKUP_NAME" -C "$HOME" "${FILES[@]}" --ignore-failed-read
+
+echo "--- Respaldo completado: $BACKUP_NAME ---"
+
+# en carpeta destino
+#Mueve el archivo .tar.gz a la carpeta /home/tu_usuario/.
+
+#Importante: Cierra la sesión de Plasma o pasa a una TTY (Ctrl+Alt+F3) para evitar conflictos mientras se sobrescriben los archivos.
+
+#Descomprime con: tar -xzvf nombre_del_archivo.tar.gz -C ~/.
+
+#Reinicia el equipo o el shell de Plasma con plasmashell --replace &.

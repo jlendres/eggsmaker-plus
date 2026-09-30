@@ -1,5 +1,5 @@
-version = "25.12.02"
-__version__ =  "25.12.02"
+version = "26.10.12"
+__version__ =  "26.10.12"
 __app__ = "Eggsmaker"
 __author__ = "Jorge Luis Endres"
 __license__ = "GPL-3.0"

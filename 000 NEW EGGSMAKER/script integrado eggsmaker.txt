@@ -1,0 +1,553 @@
+script integrado que llevara el nombre de eggsmaker
+
+1- debera estar integrado al sistema (alojado en la raiz) de forma tal que se ejecute en modo sudo al hacer click en el icono .desktop de eggsmaker. se integrara al menu de aplicaciones en la categoria herramientas , sistema o utilidades.
+
+2- debera respetar el idioma del sistema instalado.
+
+3- debera tener una estetica agradable al usuario y que sea similar en todos lo scripts incluidos.
+
+4-se debera crear un script de instalacion para incorporarlo al sistema.
+
+Script 1- crea imagenes iso del sistema.
+
+#!/bin/bash
+# Copiar y reemplazar trust-desktop.sh al inicio
+SRC="/home/jorge/trust-desktop.sh"
+DST="/etc/penguins-eggs.d/scripts/trust-desktop.sh"
+
+if [[ -f "$SRC" ]]; then
+  sudo cp -f "$SRC" "$DST"
+else
+  echo "No existe el archivo fuente: $SRC"
+  exit 1
+fi
+
+# Configuración
+ISO_DIR="/home/eggs"
+
+# Colores terminal
+VERDE='\033[0;32m'; AZUL='\033[0;34m'; ROJO='\033[0;31m'; NC='\033[0m'
+
+DID_RUN=0  # 1 si se ejecuta remaster/remaster --clone
+
+echo -e "${VERDE}===========================================${NC}"
+echo -e "        Eggsmaker-OA-Tools-TUI             "
+echo -e "${AZUL}    OA-TOOLS - Version: $(eggs version)    ${NC}"
+echo -e "${VERDE}===========================================${NC}"
+
+# 1) Cambios en la configuración
+read -p "¿Desea hacer cambios en la configuración? (s/n): " RESP_CONFIG
+if [[ "$RESP_CONFIG" == "s" ]]; then
+    sudo eggs config
+fi
+
+# 2) Grabado de configuración del escritorio actualizada
+read -p "¿Desea grabar la configuración del escritorio actualizada? (s/n): " RESP_GRABAR
+
+# Según tu regla:
+# - si fue "s" en pregunta 1 y "s" en pregunta 2 => sigue
+# - si fue "s" en pregunta 1 y "n" en pregunta 2 => pasa a clonar
+# - si fue "n" en pregunta 1 => pasa a clonar igualmente
+# En la práctica: si RESP_GRABAR es s o n, igual se llega a pregunta 4 (clonar).
+# Pero seguimos el cuestionario tal como lo pediste:
+# => siempre se pregunta clonar (pregunta 4) cuando corresponde.
+# (Aquí lo implementamos preguntando clonar siempre después de grabar, sin usar remaster sin motivo.)
+
+# 3/4) Clonar o no (pregunta por remaster/remaster --clone)
+read -p "¿Desea clonar el sistema? (s/n): " RESP_CLONAR
+
+echo -e "${AZUL}Iniciando limpieza y remasterización...${NC}"
+sudo eggs kill
+sudo eggs tools clean
+
+START_TIME=$(date +%s)
+
+if [[ "$RESP_CLONAR" == "s" ]]; then
+    # MUY IMPORTANTE: si se clona, SOLO remaster --clone y se omite remaster
+    sudo eggs remaster --clone
+else
+    # Si NO se clona, se ejecuta remaster estándar
+    sudo eggs remaster
+fi
+
+END_TIME=$(date +%s)
+DID_RUN=1
+
+# 5) Copia (solo si se ejecutó remaster o remaster --clone)
+# 3) Copia (se pregunta igual)
+if [[ "$DID_RUN" == "1" ]]; then
+
+    # Asegurar entorno gráfico (KDE a veces requiere XAUTHORITY explícito)
+    export DISPLAY="${DISPLAY:-:0}"
+    export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+
+    ISO_FILE=$(ls -t "$ISO_DIR"/*.iso 2>/dev/null | head -n 1)
+
+    pedir_destino() {
+        local d=""
+        # Intento 1: yad (si existe)
+        if command -v yad >/dev/null 2>&1; then
+            d=$(yad --file --directory --title="Seleccione la carpeta de destino" 2>/dev/null)
+            d=$(echo "$d" | head -n 1)
+        fi
+
+        # Intento 2: zenity
+        if [[ -z "$d" ]] && command -v zenity >/dev/null 2>&1; then
+            d=$(zenity --file-selection --directory --title="Seleccione la carpeta de destino" 2>/dev/null)
+            d=$(echo "$d" | head -n 1)
+        fi
+
+        # Intento 3: kdialog
+        if [[ -z "$d" ]] && command -v kdialog >/dev/null 2>&1; then
+            d=$(kdialog --getexistingdirectory "Seleccione la carpeta de destino" 2>/dev/null)
+            d=$(echo "$d" | head -n 1)
+        fi
+
+        echo "$d"
+    }
+
+    while true; do
+        echo -e "${AZUL}Abriendo selector de destino...${NC}"
+        DESTINO="$(pedir_destino)"
+
+        # Si el selector falló (DESTINO vacío), no lo tratamos como "omitido":
+        # repetimos el cuestionario hasta que el usuario elija una carpeta o cancele desde el diálogo.
+        if [[ -z "$DESTINO" ]]; then
+            read -p "No se pudo seleccionar carpeta (selector falló o se cerró). ¿Desea omitir la copia? (s/n): " OMT
+            if [[ "$OMT" == "s" ]]; then
+                echo "Copia omitida por el usuario."
+                break
+            else
+                continue
+            fi
+        fi
+
+        if [[ -n "$ISO_FILE" ]]; then
+            echo "Copiando ISO a $DESTINO..."
+            rsync --progress -h "$ISO_FILE" "$DESTINO"
+        else
+            echo -e "${ROJO}No se encontró ISO en $ISO_DIR. Copiando artefactos disponibles...${NC}"
+            rsync --progress -ah "$ISO_DIR"/ "$DESTINO"/
+        fi
+
+        read -p "¿Desea realizar otra copia? (s/n): " OTRA
+        if [[ "$OTRA" != "s" ]]; then
+            break
+        fi
+    done
+fi
+
+# 6) Limpieza final
+read -p "¿Desea eliminar los archivos temporales (eggs kill)? (s/n): " LIMPIAR
+if [[ "$LIMPIAR" == "s" ]]; then
+    sudo eggs kill
+    echo "Archivos temporales eliminados."
+fi
+
+echo -e "${VERDE}Proceso finalizado. ¡Hasta pronto!${NC}"
+
+
+---------------------------------------------------------
+nota acerca de trust-desktop.sh
+
+el contenido total del texto de trust-desktop.sh
+debera ser reemplazado en su totalidad por el siguiente
+
+#!/bin/bash
+set -euo pipefail
+
+LAUNCHER_SRC="/usr/share/applications/install-system.desktop"
+LAUNCHER_DEST="/usr/share/applications/install-system.desktop"
+
+# Copia al lanzador global (todos los usuarios)
+mkdir -p "$(dirname "$LAUNCHER_DEST")"
+
+if [ -f "$LAUNCHER_SRC" ]; then
+  install -m 0755 "$LAUNCHER_SRC" "$LAUNCHER_DEST"
+fi
+
+# Intenta actualizar cachés de .desktop (sin asumir DE específico)
+# (No todos los sistemas tienen todos los comandos; los ignoramos si fallan)
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database -q /usr/share/applications >/dev/null 2>&1 || true
+fi
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database -q >/dev/null 2>&1 || true
+fi
+
+# También refrescar iconos por si aplica
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  # directorios típicos; ignoramos errores
+  gtk-update-icon-cache -f /usr/share/icons/* >/dev/null 2>&1 || true
+  gtk-update-icon-cache -f /usr/local/share/icons/* >/dev/null 2>&1 || true
+fi
+
+# "Trust" (opcional/específico). Si no existe o no aplica, simplemente se ignora.
+# Se mantiene similar a tu lógica, pero ya no depende de plasmashell/xfce.
+if command -v gio >/dev/null 2>&1; then
+  if [ -f "$LAUNCHER_DEST" ]; then
+    gio set "$LAUNCHER_DEST" metadata::trusted yes 2>/dev/null || true
+    if command -v sha256sum >/dev/null 2>&1; then
+      gio set "$LAUNCHER_DEST" metadata::xfce-exe-checksum "$(sha256sum "$LAUNCHER_DEST" | awk '{print $1}')" 2>/dev/null || true
+    fi
+  fi
+fi
+
+
+---------------------------------------------------------
+script 2- crear un script para hacer la instalacion live con 2 opciones
+
+1- calamares
+2 - krill
+
+si la opcion es la 1 el comando sera : sudo eggs sysinstall calamares
+si la opcion es ña 1 el comando sera : sudo eggs sysinstall krill
+
+---------------------------------------------------------
+
+script 3- recopila , instala, desinstala paquetes
+
+#!/bin/bash
+
+# =====================================
+# Gestor de Paquetes Unificado (Bash)
+# Incluye funciones de instalación y desinstalación
+# para pacman, yay (AUR) y flatpak.
+# =====================================
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+LOG="script.log"
+PACMAN_LIST="lista-pacman.txt"
+YAY_LIST="lista-yay.txt"
+FLATPAK_LIST="lista-flatpak.txt"
+
+CONFIG_DIR="$HOME/.config/pkg-transfer"
+PACMAN_SEL="$CONFIG_DIR/pacman_selected.txt"
+YAY_SEL="$CONFIG_DIR/yay_selected.txt"
+FLATPAK_SEL="$CONFIG_DIR/flatpak_selected.txt"
+
+PACMAN_RM_SEL="$CONFIG_DIR/pacman_remove.txt"
+YAY_RM_SEL="$CONFIG_DIR/yay_remove.txt"
+FLATPAK_RM_SEL="$CONFIG_DIR/flatpak_remove.txt"
+mkdir -p "$CONFIG_DIR"
+
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG"
+}
+
+check_yad() {
+  if ! command -v yad &>/dev/null; then
+    echo "YAD no está instalado. Instalando..."
+    sudo pacman -S --noconfirm yad || {
+      echo "No se pudo instalar YAD. Saliendo."
+      exit 1
+    }
+  fi
+}
+
+ensure_yay() {
+  command -v yay &>/dev/null
+}
+
+ensure_flatpak() {
+  command -v flatpak &>/dev/null
+}
+
+recopilar_listas() {
+  log "Generando listas de paquetes instalados..."
+  rm -f "$PACMAN_LIST" "$YAY_LIST" "$FLATPAK_LIST"
+
+  pacman -Qqetn | sort | grep -vwE '^(base|base-devel)$' > "$PACMAN_LIST"
+  pc_cnt=$(wc -l < "$PACMAN_LIST")
+
+  pacman -Qqetm | sort > "$YAY_LIST"
+  yay_cnt=$(wc -l < "$YAY_LIST")
+
+  if ensure_flatpak; then
+    flatpak list --app --columns=application > "$FLATPAK_LIST"
+  else
+    : > "$FLATPAK_LIST"
+  fi
+  fl_cnt=$(wc -l < "$FLATPAK_LIST")
+
+  log "Pacman: $pc_cnt | Yay: $yay_cnt | Flatpak: $fl_cnt"
+
+  yad --info \
+    --title="Listas generadas" \
+    --text="Pacman: $pc_cnt
+Yay: $yay_cnt
+Flatpak: $fl_cnt"
+}
+
+selector_paquetes() {
+  local titulo="$1" lista="$2" sel_prev="$3" tipo="$4"
+  local check_status="FALSE"
+  local button_text="Aplicar"
+
+  if [[ "$tipo" == "pacman" && "$titulo" =~ "Seleccionar" ]]; then
+    if [[ "$titulo" == "Seleccionar paquetes Pacman" ]]; then
+      check_status="TRUE"
+      button_text="Continuar"
+    elif [[ "$titulo" == "Seleccionar paquetes Yay (AUR)" ]]; then
+      check_status="TRUE"
+      button_text="Continuar"
+    elif [[ "$titulo" == "Seleccionar paquetes Flatpak" ]]; then
+      check_status="TRUE"
+      button_text="Continuar"
+    fi
+  fi
+
+  while true; do
+    if [[ ! -s "$lista" ]]; then
+      yad --info --text="La lista de $tipo está vacía."
+      return 1
+    fi
+
+    local -a opciones=()
+    local checked
+    while IFS= read -r pkg; do
+      [[ -n "$pkg" ]] || continue
+      if [[ -f "$sel_prev" ]] && grep -qxF "$pkg" "$sel_prev"; then
+        checked="TRUE"
+      else
+        checked="$check_status"
+      fi
+      opciones+=("$checked" "$pkg" "$tipo")
+    done < "$lista"
+
+    local seleccion
+    local exit_code
+
+    seleccion=$(
+      yad --list --checklist \
+        --title="$titulo (Búsqueda: escriba para filtrar)" \
+        --width=900 --height=650 --center \
+        --column="Seleccionar:CHK" --column="Paquete" --column="Tipo" \
+        "${opciones[@]}" \
+        --print-column=2 --separator=$'\n' \
+        --search-column=2 \
+        --button="$button_text:0" \
+        --button="Atrás/Cancelar:1" \
+        --button="Borrar Seleccionad@s:2" \
+        --button="Marcar Todos:3" \
+        --button="Desmarcar Todos:4"
+    )
+    exit_code=$?
+
+    case $exit_code in
+      0)
+        printf "%s\n" "$seleccion" > "$sel_prev"
+        return 0
+        ;;
+      1)
+        return 1
+        ;;
+      2)
+        if [[ -n "$seleccion" ]]; then
+          grep -vFf <(echo "$seleccion") "$lista" > "${lista}.tmp" && mv "${lista}.tmp" "$lista"
+          if [[ -s "$sel_prev" ]]; then
+            grep -vFf <(echo "$seleccion") "$sel_prev" > "${sel_prev}.tmp" && mv "${sel_prev}.tmp" "$sel_prev"
+          fi
+        else
+          yad --info --text="No hay paquetes seleccionados para borrar."
+        fi
+        ;;
+      3)
+        check_status="TRUE"
+        rm -f "$sel_prev"
+        ;;
+      4)
+        check_status="FALSE"
+        rm -f "$sel_prev"
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  done
+}
+
+instalar_paquetes() {
+  local had_any=0
+
+  if [[ -s "$PACMAN_SEL" ]]; then
+    had_any=1
+    log "Instalando paquetes Pacman seleccionados..."
+    while IFS= read -r pkg; do
+      [[ -n "$pkg" ]] || continue
+      log "pacman: $pkg"
+      if ! sudo pacman -S --needed --noconfirm "$pkg"; then
+        log "ERROR: No se pudo instalar $pkg (pacman)"
+      fi
+    done < "$PACMAN_SEL"
+  fi
+
+  if [[ -s "$YAY_SEL" ]]; then
+    had_any=1
+    if ensure_yay; then
+      log "Instalando paquetes AUR (yay) seleccionados..."
+      while IFS= read -r pkg; do
+        [[ -n "$pkg" ]] || continue
+        log "yay: $pkg"
+        if ! yay -S --needed --noconfirm "$pkg"; then
+          log "ERROR: No se pudo instalar $pkg (yay)"
+        fi
+      done < "$YAY_SEL"
+    else
+      yad --warning --text="No se encontró 'yay'. Omite instalación de AUR."
+    fi
+  fi
+
+  if [[ -s "$FLATPAK_SEL" ]]; then
+    had_any=1
+    if ensure_flatpak; then
+      log "Instalando aplicaciones Flatpak seleccionadas..."
+      while IFS= read -r app; do
+        [[ -n "$app" ]] || continue
+        log "flatpak: $app"
+        if ! flatpak install -y "$app"; then
+          log "ERROR: No se pudo instalar $app (flatpak)"
+        fi
+      done < "$FLATPAK_SEL"
+    else
+      yad --warning --text="No se pudo instalar Flatpak. Omite Flatpak."
+    fi
+  fi
+
+  if [[ $had_any -eq 0 ]]; then
+    yad --info --text="No hay selección guardada para instalar."
+  else
+    yad --info --text="Instalación finalizada. Revise $LOG para detalles."
+  fi
+}
+
+desinstalar_paquetes() {
+  local had_any=0
+
+  if [[ -s "$PACMAN_RM_SEL" ]]; then
+    had_any=1
+    log "Desinstalando paquetes Pacman..."
+    while IFS= read -r pkg; do
+      [[ -n "$pkg" ]] || continue
+      log "pacman -Rns: $pkg"
+      sudo pacman -Rns --noconfirm "$pkg" || log "ERROR: No se pudo desinstalar $pkg (pacman)"
+    done < "$PACMAN_RM_SEL"
+  fi
+
+  if [[ -s "$YAY_RM_SEL" ]]; then
+    had_any=1
+    if ensure_yay; then
+      log "Desinstalando paquetes AUR con yay..."
+      while IFS= read -r pkg; do
+        [[ -n "$pkg" ]] || continue
+        log "yay -Rns: $pkg"
+        yay -Rns --noconfirm "$pkg" || log "ERROR: No se pudo desinstalar $pkg (yay)"
+      done < "$YAY_RM_SEL"
+    else
+      yad --warning --text="No se encontró 'yay'. Omite AUR."
+    fi
+  fi
+
+  if [[ -s "$FLATPAK_RM_SEL" ]]; then
+    had_any=1
+    if ensure_flatpak; then
+      log "Desinstalando Flatpak..."
+      while IFS= read -r app; do
+        [[ -n "$app" ]] || continue
+        log "flatpak uninstall: $app"
+        flatpak uninstall -y "$app" || log "ERROR: No se pudo desinstalar $app (flatpak)"
+      done < "$FLATPAK_RM_SEL"
+    else
+      yad --warning --text="Flatpak no disponible."
+    fi
+  fi
+
+  if [[ $had_any -eq 0 ]]; then
+    yad --info --text="No hay selección guardada para desinstalar."
+  else
+    yad --info --text="✅ Desinstalación finalizada. Revise $LOG para detalles."
+  fi
+}
+
+instalar_menu() {
+  while true; do
+    local opcion
+    opcion=$(
+      yad --list --title="Menú de Instalación" --width=520 --height=340 \
+          --column="Acción" --column="Descripción" \
+          "Recopilar" "Recopilar paquetes instalados (actualiza listas)" \
+          "Seleccionar" "Marcar/desmarcar qué paquetes instalar" \
+          "Instalar" "Instalar paquetes según selección guardada" \
+          "Salir" "Volver al menú principal" \
+          --single-click
+    )
+    case "${opcion:-}" in
+      Recopilar*) recopilar_listas ;;
+      Seleccionar*)
+        selector_paquetes "Seleccionar paquetes Pacman" "$PACMAN_LIST" "$PACMAN_SEL" "pacman" || true
+        selector_paquetes "Seleccionar paquetes Yay (AUR)" "$YAY_LIST" "$YAY_SEL" "yay" || true
+        selector_paquetes "Seleccionar paquetes Flatpak" "$FLATPAK_LIST" "$FLATPAK_SEL" "flatpak" || true
+        ;;
+      Instalar*) instalar_paquetes ;;
+      Salir*|"") clear; return ;;
+    esac
+  done
+}
+
+desinstalar_menu() {
+  while true; do
+    local opcion
+    opcion=$(
+      yad --list --title="Menú de Desinstalación" \
+          --width=540 --height=350 --center \
+          --column="Acción" --column="Descripción" \
+          "Recopilar" "Generar listas de paquetes instalados" \
+          "Seleccionar" "Marcar qué paquetes desinstalar" \
+          "Desinstalar" "Eliminar los paquetes seleccionados" \
+          "Salir" "Volver al menú principal" \
+          --single-click
+    )
+    case "${opcion:-}" in
+      Recopilar*)  recopilar_listas ;;
+      Seleccionar*)
+        selector_paquetes "Pacman: marcar para DESINSTALAR" "$PACMAN_LIST" "$PACMAN_RM_SEL" "pacman" || true
+        selector_paquetes "AUR (yay): marcar para DESINSTALAR" "$YAY_LIST" "$YAY_RM_SEL" "yay" || true
+        selector_paquetes "Flatpak: marcar para DESINSTALAR" "$FLATPAK_LIST" "$FLATPAK_RM_SEL" "flatpak" || true
+        ;;
+      Desinstalar*) desinstalar_paquetes ;;
+      Salir*|"")   clear; return ;;
+    esac
+  done
+}
+
+main_menu_launcher() {
+  while true; do
+    local opcion
+    opcion=$(
+      yad --list --title="Gestor de Paquetes" \
+          --width=400 --height=200 --center \
+          --column="Acción" --column="Descripción" \
+          "Instalar" "Gestionar instalación de paquetes" \
+          "Desinstalar" "Gestionar desinstalación de paquetes" \
+          "Salir" "Salir del gestor" \
+          --single-click
+    )
+    case "${opcion:-}" in
+      Instalar*)   instalar_menu ;;
+      Desinstalar*) desinstalar_menu ;;
+      Salir*|"")   clear; exit 0 ;;
+    esac
+  done
+}
+
+check_yad
+main_menu_launcher
+
+--------------------------------------------------------------
+
+---------------------------------------------------------------
+
