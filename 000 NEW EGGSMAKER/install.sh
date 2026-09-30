@@ -1,73 +1,68 @@
 #!/bin/bash
-# Script de Instalación Integrado de Eggsmaker
+# ==============================================================================
+# Script de Instalación de Eggsmaker
+# ==============================================================================
 
 set -euo pipefail
 
-if [[ $EUID -ne 0 ]]; then
-   echo "Este script debe ejecutarse como root (sudo ./install.sh)"
-   exit 1
+# Verificar permisos de superusuario
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: Este script debe ejecutarse con sudo o como root." >&2
+  exit 1
 fi
 
-echo "==> Instalando suite Eggsmaker..."
+# Obtener el directorio donde se encuentra este script install.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. Copiar script ejecutable a la raíz de binaries
-BIN_DEST="/usr/local/bin/eggsmaker"
-cp -f "./eggsmaker" "$BIN_DEST"
-chmod 755 "$BIN_DEST"
-chown root:root "$BIN_DEST"
+echo "==> Instalando Eggsmaker..."
 
-# 2. Crear archivo .desktop para la integración en el Menú de Aplicaciones
+# 1. Copiar el ejecutable principal
+if [ -f "$SCRIPT_DIR/eggsmaker" ]; then
+  cp "$SCRIPT_DIR/eggsmaker" /usr/local/bin/eggsmaker
+  chmod +x /usr/local/bin/eggsmaker
+  echo "  [✓] Ejecutable copiado a /usr/local/bin/eggsmaker"
+else
+  echo "  [!] Advertencia: No se encontró el archivo 'eggsmaker' en $SCRIPT_DIR"
+fi
+
+# 2. Copiar el icono a /usr/share/pixmaps
+mkdir -p /usr/share/pixmaps
+
+# Busca assets/eggsmaker.png o assets/eggmaker.png por si varía el nombre
+ICON_SOURCE=""
+if [ -f "$SCRIPT_DIR/assets/eggsmaker.png" ]; then
+  ICON_SOURCE="$SCRIPT_DIR/assets/eggsmaker.png"
+elif [ -f "$SCRIPT_DIR/assets/eggmaker.png" ]; then
+  ICON_SOURCE="$SCRIPT_DIR/assets/eggmaker.png"
+fi
+
+if [ -n "$ICON_SOURCE" ]; then
+  cp "$ICON_SOURCE" /usr/share/pixmaps/eggsmaker.png
+  chmod 644 /usr/share/pixmaps/eggsmaker.png
+  echo "  [✓] Icono copiado a /usr/share/pixmaps/eggsmaker.png"
+else
+  echo "  [!] Advertencia: No se encontró el icono en assets/eggsmaker.png ni assets/eggmaker.png"
+fi
+
+# 3. Crear el lanzador .desktop en el sistema
 DESKTOP_FILE="/usr/share/applications/eggsmaker.desktop"
-
 cat << 'EOF' > "$DESKTOP_FILE"
 [Desktop Entry]
-Version=1.0
-Type=Application
 Name=Eggsmaker
-Name[es]=Eggsmaker
-Comment=Herramientas de gestión y creación de ISOs con Penguins Eggs
-Comment[es]=Herramientas de gestión y creación de ISOs con Penguins Eggs
-Exec=pkexec /usr/local/bin/eggsmaker
-Icon=system-software-install
-Terminal=false
-Categories=System;Utility;Settings;
-StartupNotify=true
+Comment=Suite para administración de Penguins Eggs y Paquetes
+Exec=sudo /usr/local/bin/eggsmaker
+Icon=eggsmaker
+Terminal=true
+Type=Application
+Categories=System;Utility;
 EOF
 
 chmod 644 "$DESKTOP_FILE"
+echo "  [✓] Lanzador creado en $DESKTOP_FILE"
 
-# 3. Regla Polkit para permitir ejecución con elevación de privilegios gráfica
-POLKIT_POLICY="/usr/share/polkit-1/actions/org.eggsmaker.policy"
-
-cat << 'EOF' > "$POLKIT_POLICY"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
-"http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
-<policyconfig>
-  <action id="org.eggsmaker.pkexec">
-    <description>Ejecutar Eggsmaker con privilegios de administrador</description>
-    <message>Se requieren privilegios de superusuario para ejecutar Eggsmaker</message>
-    <defaults>
-      <allow_any>auth_admin</allow_any>
-      <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>auth_admin</allow_active>
-    </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/eggsmaker</annotate>
-    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
-  </action>
-</policyconfig>
-EOF
-
-chmod 644 "$POLKIT_POLICY"
-
-# 4. Actualizar las bases de datos del sistema
-if command -v update-desktop-database >/dev/null 2>&1; then
+# Actualizar base de datos de escritorio si existe el comando
+if command -v update-desktop-database &>/dev/null; then
   update-desktop-database -q /usr/share/applications || true
 fi
 
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
-fi
-
-echo "==> ¡Instalación completada con éxito!"
-echo "Puede encontrar Eggsmaker en la categoría 'Herramientas' / 'Sistema' del menú de aplicaciones."
+echo "==> Instalación completada con éxito."
