@@ -1,13 +1,10 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.1.4
-# Descripción: Suite integrada para administración de Penguins Eggs y Paquetes (Interfaz YAD pura)
+# Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 # ==============================================================================
 
 set -euo pipefail
-
-VERSION="1.1.4"
 
 # ------------------------------------------------------------------------------
 # Verificación e Instalación Automática de Dependencias
@@ -75,30 +72,28 @@ YAY_RM_SEL="$TARGET_DIR/yay_remove.txt"
 FLATPAK_RM_SEL="$TARGET_DIR/flatpak_remove.txt"
 
 # ------------------------------------------------------------------------------
-# Ejecución en YAD (Visor de salida puro en ventana YAD)
+# Detección de Terminal para Interfaces TUI (ncurses)
 # ------------------------------------------------------------------------------
-run_in_yad() {
-  local cmd_to_run="$1"
-  local title="${2:-Ejecutando proceso...}"
-
-  bash -c "$cmd_to_run" 2>&1 | yad --text-info \
-    --window-icon="$ICON_PATH" \
-    --title="$title" \
-    --width=800 --height=500 \
-    --tail \
-    --button="Cerrar:0" 2>/dev/null || true
-}
-
-run_as_user() {
-  local user_cmd="$1"
-  if [ -n "${SUDO_USER:-}" ]; then
-    sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u "$REAL_USER")/bus" DISPLAY="${DISPLAY:-:0}" XAUTHORITY="${XAUTHORITY:-$REAL_HOME/.Xauthority}" bash -c "$user_cmd"
+run_in_terminal() {
+  local cmd="$1"
+  if command -v x-terminal-emulator &>/dev/null; then
+    x-terminal-emulator -e bash -c "$cmd"
+  elif command -v konsole &>/dev/null; then
+    konsole -e bash -c "$cmd"
+  elif command -v xfce4-terminal &>/dev/null; then
+    xfce4-terminal -e "bash -c '$cmd'"
+  elif command -v gnome-terminal &>/dev/null; then
+    gnome-terminal -- bash -c "$cmd"
+  elif command -v alacritty &>/dev/null; then
+    alacritty -e bash -c "$cmd"
+  elif command -v kitty &>/dev/null; then
+    kitty bash -c "$cmd"
+  elif command -v xterm &>/dev/null; then
+    xterm -e bash -c "$cmd"
   else
-    bash -c "$user_cmd"
+    bash -c "$cmd"
   fi
 }
-
-export -f run_as_user
 
 # ------------------------------------------------------------------------------
 # Detección de Idioma e Internacionalización (i18n)
@@ -106,8 +101,8 @@ export -f run_as_user
 LANG_SYS="${LANG:-es}"
 
 if [[ "$LANG_SYS" =~ ^es ]]; then
-  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker v$VERSION</b></span>\n<big>Herramientas de Administración de Sistema</big>\n"
-  TITLE_MAIN="Eggsmaker v$VERSION - Herramientas de Sistema"
+  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker</b></span>\n<big>Herramientas de Administración de Sistema</big>\n"
+  TITLE_MAIN="Eggsmaker - Herramientas de Sistema"
   OPT_1_NAME="1. Generar ISO (Penguins Eggs)"
   OPT_1_DESC="Crear imagen ISO personalizada o clon del sistema"
   OPT_2_NAME="2. Instalación Live (Calamares / Krill)"
@@ -117,7 +112,7 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   OPT_EXIT="Salir"
   OPT_EXIT_DESC="Cerrar la aplicación"
 
-  S1_TITLE="Eggsmaker v$VERSION - Generador ISO"
+  S1_TITLE="Eggsmaker - Generador ISO"
   S1_CONF_CFG="¿Desea realizar cambios en la configuración de eggs (eggs config)?"
   S1_CONF_CLONE="¿Desea realizar un clon del sistema (--clone)?"
   S1_DEST_TITLE="Seleccione la carpeta de destino para la ISO"
@@ -126,17 +121,17 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   S1_CONF_KILL="¿Desea eliminar los archivos temporales de construcción (eggs kill)?"
   S1_FINISH="Proceso finalizado correctamente."
 
-  S2_TITLE="Eggsmaker v$VERSION - Instalador del Sistema"
+  S2_TITLE="Eggsmaker - Instalador del Sistema"
   S2_PROMPT="Seleccione el instalador a ejecutar:"
 
-  S3_TITLE="Eggsmaker v$VERSION - Gestor de Paquetes"
+  S3_TITLE="Eggsmaker - Gestor de Paquetes"
   S3_REC="Recopilar paquetes instalados"
   S3_SEL="Seleccionar paquetes"
   S3_EXE="Ejecutar proceso"
   S3_BACK="Volver al menú anterior"
 else
-  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker v$VERSION</b></span>\n<big>System Administration Suite</big>\n"
-  TITLE_MAIN="Eggsmaker v$VERSION - System Tools"
+  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker</b></span>\n<big>System Administration Suite</big>\n"
+  TITLE_MAIN="Eggsmaker - System Tools"
   OPT_1_NAME="1. Generate ISO (Penguins Eggs)"
   OPT_1_DESC="Create a custom ISO image or system clone"
   OPT_2_NAME="2. Live Installation (Calamares / Krill)"
@@ -146,7 +141,7 @@ else
   OPT_EXIT="Exit"
   OPT_EXIT_DESC="Close application"
 
-  S1_TITLE="Eggsmaker v$VERSION - ISO Generator"
+  S1_TITLE="Eggsmaker - ISO Generator"
   S1_CONF_CFG="Do you want to edit eggs configuration (eggs config)?"
   S1_CONF_CLONE="Do you want to create a system clone (--clone)?"
   S1_DEST_TITLE="Select destination directory for the ISO"
@@ -155,10 +150,10 @@ else
   S1_CONF_KILL="Do you want to remove temporary build files (eggs kill)?"
   S1_FINISH="Process completed successfully."
 
-  S2_TITLE="Eggsmaker v$VERSION - System Installer"
+  S2_TITLE="Eggsmaker - System Installer"
   S2_PROMPT="Select installer to run:"
 
-  S3_TITLE="Eggsmaker v$VERSION - Package Manager"
+  S3_TITLE="Eggsmaker - Package Manager"
   S3_REC="Collect installed packages"
   S3_SEL="Select packages"
   S3_EXE="Execute process"
@@ -217,19 +212,19 @@ EOF
 
   ISO_DIR="/home/eggs"
 
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1" 2>/dev/null; then
-    run_in_yad "eggs config" "$S1_TITLE - Configuración"
+  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1"; then
+    run_in_terminal "sudo eggs config"
   fi
 
   DO_CLONE=0
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CLONE" --button="Sí:0" --button="No:1" 2>/dev/null; then
+  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CLONE" --button="Sí:0" --button="No:1"; then
     DO_CLONE=1
   fi
 
   if [[ $DO_CLONE -eq 1 ]]; then
-    run_in_yad "eggs kill && eggs tools clean && eggs remaster --clone" "$S1_TITLE - Creando Clon ISO"
+    run_in_terminal "sudo eggs kill && sudo eggs tools clean && sudo eggs remaster --clone"
   else
-    run_in_yad "eggs kill && eggs tools clean && eggs remaster" "$S1_TITLE - Creando ISO"
+    run_in_terminal "sudo eggs kill && sudo eggs tools clean && sudo eggs remaster"
   fi
 
   ISO_FILE=$(ls -t "$ISO_DIR"/*.iso 2>/dev/null | head -n 1 || true)
@@ -238,7 +233,7 @@ EOF
     DESTINO=$(yad --window-icon="$ICON_PATH" --file --directory --title="$S1_DEST_TITLE" 2>/dev/null || true)
 
     if [[ -z "$DESTINO" ]]; then
-      if yad --window-icon="$ICON_PATH" --image="dialog-warning" --title="$S1_TITLE" --text="$S1_COPY_OMIT" --button="Sí:0" --button="No:1" 2>/dev/null; then
+      if yad --window-icon="$ICON_PATH" --image="dialog-warning" --title="$S1_TITLE" --text="$S1_COPY_OMIT" --button="Sí:0" --button="No:1"; then
         break
       else
         continue
@@ -247,33 +242,46 @@ EOF
 
     if [[ -n "$ISO_FILE" ]]; then
       FILENAME=$(basename "$ISO_FILE")
-      run_in_yad "
-        echo 'Copiando archivo: $FILENAME'
-        echo 'Destino: $DESTINO'
-        echo '---------------------------------------------------'
-        rsync --info=progress2 -h '$ISO_FILE' '$DESTINO/'
-        echo '✔ Copia completada.'
-      " "$S1_TITLE - Copiando ISO"
+
+      run_in_terminal "bash -c '
+        echo -e \"\e[1;36m======================================================================\e[0m\"
+        echo -e \"\e[1;32m  COPIANDO ARCHIVO ISO\e[0m\"
+        echo -e \"\e[1;36m======================================================================\e[0m\"
+        echo -e \"\e[1;33mOrigen :\e[0m $FILENAME\"
+        echo -e \"\e[1;33mDestino:\e[0m $DESTINO\"
+        echo -e \"\e[1;36m----------------------------------------------------------------------\e[0m\n\"
+
+        rsync --info=progress2 -h \"$ISO_FILE\" \"$DESTINO/\"
+
+        echo -e \"\n\e[1;32m✔ Copia completada con éxito.\e[0m\"
+        sleep 2
+      '"
     else
-      run_in_yad "
-        echo 'Copiando contenido de: $ISO_DIR/'
-        echo 'Destino: $DESTINO/'
-        echo '---------------------------------------------------'
-        rsync --info=progress2 -ah '$ISO_DIR/' '$DESTINO/'
-        echo '✔ Copia completada.'
-      " "$S1_TITLE - Copiando ISO"
+      run_in_terminal "bash -c '
+        echo -e \"\e[1;36m======================================================================\e[0m\"
+        echo -e \"\e[1;32m  COPIANDO ARTEFACTOS DE LA ISO\e[0m\"
+        echo -e \"\e[1;36m======================================================================\e[0m\"
+        echo -e \"\e[1;33mOrigen :\e[0m $ISO_DIR/\"
+        echo -e \"\e[1;33mDestino:\e[0m $DESTINO/\"
+        echo -e \"\e[1;36m----------------------------------------------------------------------\e[0m\n\"
+
+        rsync --info=progress2 -ah \"$ISO_DIR/\" \"$DESTINO/\"
+
+        echo -e \"\n\e[1;32m✔ Copia completada con éxito.\e[0m\"
+        sleep 2
+      '"
     fi
 
-    if ! yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_COPY_AGAIN" --button="Sí:0" --button="No:1" 2>/dev/null; then
+    if ! yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_COPY_AGAIN" --button="Sí:0" --button="No:1"; then
       break
     fi
   done
 
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_KILL" --button="Sí:0" --button="No:1" 2>/dev/null; then
-    eggs kill 2>/dev/null || true
+  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_KILL" --button="Sí:0" --button="No:1"; then
+    eggs kill
   fi
 
-  yad --window-icon="$ICON_PATH" --title="$S1_TITLE" --image="dialog-information" --text="$S1_FINISH" --button="Aceptar:0" 2>/dev/null || true
+  yad --window-icon="$ICON_PATH" --title="$S1_TITLE" --image="dialog-information" --text="$S1_FINISH" --button="Aceptar:0"
 }
 
 # ------------------------------------------------------------------------------
@@ -282,15 +290,15 @@ EOF
 run_script_2() {
   INSTALLER=$(yad --window-icon="$ICON_PATH" --list --radiolist --title="$S2_TITLE" --text="$S2_PROMPT" \
     --column="Sel" --column="Opción" --column="Comando" \
-    TRUE "Calamares (GUI)" "eggs sysinstall calamares" \
-    FALSE "Krill (TUI)" "eggs sysinstall krill" \
-    --height=220 --width=480 --print-column=2 2>/dev/null || true)
+    TRUE "Calamares (GUI)" "sudo eggs sysinstall calamares" \
+    FALSE "Krill (TUI)" "sudo eggs sysinstall krill" \
+    --height=220 --width=480 --print-column=2 || true)
 
   if [[ -n "$INSTALLER" ]]; then
     if [[ "$INSTALLER" =~ "Calamares" ]]; then
-      eggs sysinstall calamares 2>/dev/null || true
+      sudo eggs sysinstall calamares
     elif [[ "$INSTALLER" =~ "Krill" ]]; then
-      run_in_yad "eggs sysinstall krill" "$S2_TITLE - Krill"
+      run_in_terminal "sudo eggs sysinstall krill"
     fi
   fi
 }
@@ -308,7 +316,7 @@ recopilar_listas() {
   fi
 
   if command -v flatpak &>/dev/null; then
-    run_as_user "flatpak list --app --columns=application" > "$FLATPAK_LIST" 2>/dev/null || true
+    flatpak list --app --columns=application > "$FLATPAK_LIST" || true
   fi
 
   chown -R "$REAL_USER:" "$TARGET_DIR" 2>/dev/null || true
@@ -322,7 +330,7 @@ recopilar_listas() {
   yad --window-icon="$ICON_PATH" --title="$S3_TITLE" \
     --image="dialog-information" \
     --text="Listas guardadas en:\n<b>$TARGET_DIR</b>\n\nPacman: $pc_cnt\nYay: $yay_cnt\nFlatpak: $fl_cnt" \
-    --button="Aceptar:0" 2>/dev/null || true
+    --button="Aceptar:0"
 }
 
 selector_paquetes() {
@@ -341,7 +349,7 @@ selector_paquetes() {
   seleccion=$(yad --window-icon="$ICON_PATH" --list --checklist --title="$titulo" \
     --width=800 --height=500 --center \
     --column="CHK" --column="Paquete" --column="Tipo" \
-    "${opciones[@]}" --print-column=2 --separator=$'\n' 2>/dev/null || true)
+    "${opciones[@]}" --print-column=2 --separator=$'\n' || true)
 
   if [[ -n "$seleccion" ]]; then
     echo "$seleccion" > "$sel_prev"
@@ -351,88 +359,26 @@ selector_paquetes() {
 
 instalar_paquetes() {
   log_msg "Iniciando instalación desde $TARGET_DIR"
-  local cmd_chain=""
-
-  if [[ -s "$PACMAN_SEL" ]]; then
-    local pkgs_pacman
-    pkgs_pacman=$(tr '\n' ' ' < "$PACMAN_SEL")
-    if [[ -n "$pkgs_pacman" ]]; then
-      cmd_chain+="echo '=== INSTALANDO PAQUETES PACMAN ==='; pacman -S --needed --noconfirm $pkgs_pacman || true; "
-    fi
-  fi
-
-  if [[ -s "$YAY_SEL" ]] && command -v yay &>/dev/null; then
-    local pkgs_yay
-    pkgs_yay=$(tr '\n' ' ' < "$YAY_SEL")
-    if [[ -n "$pkgs_yay" ]]; then
-      cmd_chain+="echo '=== INSTALANDO PAQUETES YAY (AUR) ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus yay -S --needed --noconfirm $pkgs_yay || true; "
-    fi
-  fi
-
-  if [[ -s "$FLATPAK_SEL" ]] && command -v flatpak &>/dev/null; then
-    local pkgs_flatpak
-    pkgs_flatpak=$(tr '\n' ' ' < "$FLATPAK_SEL")
-    if [[ -n "$pkgs_flatpak" ]]; then
-      cmd_chain+="echo '=== INSTALANDO FLATPAKS ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus flatpak install -y $pkgs_flatpak || true; "
-    fi
-  fi
-
-  if [[ -n "$cmd_chain" ]]; then
-    run_in_yad "$cmd_chain" "$S3_TITLE - Instalación"
-  else
-    yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-warning" \
-      --text="No hay paquetes seleccionados para instalar." \
-      --button="Aceptar:0" 2>/dev/null || true
-    return
-  fi
+  [[ -s "$PACMAN_SEL" ]] && pacman -S --needed --noconfirm $(cat "$PACMAN_SEL")
+  [[ -s "$YAY_SEL" ]] && command -v yay &>/dev/null && su - "$REAL_USER" -c "yay -S --needed --noconfirm $(cat "$YAY_SEL")"
+  [[ -s "$FLATPAK_SEL" ]] && command -v flatpak &>/dev/null && flatpak install -y $(cat "$FLATPAK_SEL")
 
   log_msg "Instalación completada"
   yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-information" \
-    --text="Proceso de instalación finalizado.\nConsulte $LOG_FILE para detalles." \
-    --button="Aceptar:0" 2>/dev/null || true
+    --text="Proceso de instalación completado.\nConsulte $LOG_FILE para detalles." \
+    --button="Aceptar:0"
 }
 
 desinstalar_paquetes() {
   log_msg "Iniciando desinstalación desde $TARGET_DIR"
-  local cmd_chain=""
-
-  if [[ -s "$PACMAN_RM_SEL" ]]; then
-    local pkgs_pacman
-    pkgs_pacman=$(tr '\n' ' ' < "$PACMAN_RM_SEL")
-    if [[ -n "$pkgs_pacman" ]]; then
-      cmd_chain+="echo '=== DESINSTALANDO PAQUETES PACMAN ==='; pacman -Rns --noconfirm $pkgs_pacman || true; "
-    fi
-  fi
-
-  if [[ -s "$YAY_RM_SEL" ]] && command -v yay &>/dev/null; then
-    local pkgs_yay
-    pkgs_yay=$(tr '\n' ' ' < "$YAY_RM_SEL")
-    if [[ -n "$pkgs_yay" ]]; then
-      cmd_chain+="echo '=== DESINSTALANDO PAQUETES YAY (AUR) ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus yay -Rns --noconfirm $pkgs_yay || true; "
-    fi
-  fi
-
-  if [[ -s "$FLATPAK_RM_SEL" ]] && command -v flatpak &>/dev/null; then
-    local pkgs_flatpak
-    pkgs_flatpak=$(tr '\n' ' ' < "$FLATPAK_RM_SEL")
-    if [[ -n "$pkgs_flatpak" ]]; then
-      cmd_chain+="echo '=== DESINSTALANDO FLATPAKS ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus flatpak uninstall -y $pkgs_flatpak || true; "
-    fi
-  fi
-
-  if [[ -n "$cmd_chain" ]]; then
-    run_in_yad "$cmd_chain" "$S3_TITLE - Desinstalación"
-  else
-    yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-warning" \
-      --text="No hay paquetes seleccionados para desinstalar." \
-      --button="Aceptar:0" 2>/dev/null || true
-    return
-  fi
+  [[ -s "$PACMAN_RM_SEL" ]] && pacman -Rns --noconfirm $(cat "$PACMAN_RM_SEL")
+  [[ -s "$YAY_RM_SEL" ]] && command -v yay &>/dev/null && su - "$REAL_USER" -c "yay -Rns --noconfirm $(cat "$YAY_RM_SEL")"
+  [[ -s "$FLATPAK_RM_SEL" ]] && command -v flatpak &>/dev/null && flatpak uninstall -y $(cat "$FLATPAK_RM_SEL")
 
   log_msg "Desinstalación completada"
   yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-information" \
-    --text="Proceso de desinstalación finalizado.\nConsulte $LOG_FILE para detalles." \
-    --button="Aceptar:0" 2>/dev/null || true
+    --text="Proceso de desinstalación completado.\nConsulte $LOG_FILE para detalles." \
+    --button="Aceptar:0"
 }
 
 run_script_3() {
@@ -445,7 +391,7 @@ run_script_3() {
       "4. $S3_SEL (Desinstalar)" "Elegir paquetes para remover" \
       "5. $S3_EXE (Desinstalar)" "Ejecutar la desinstalación" \
       "6. $S3_BACK" "Regresar al menú principal" \
-      --print-column=1 2>/dev/null || true)
+      --print-column=1 || true)
 
     if [[ -z "$ACTION" ]]; then
       break
@@ -483,7 +429,7 @@ while true; do
     "$OPT_2_NAME" "$OPT_2_DESC" \
     "$OPT_3_NAME" "$OPT_3_DESC" \
     "$OPT_EXIT" "$OPT_EXIT_DESC" \
-    --separator="" 2>/dev/null || true)
+    --separator="" || true)
 
   case "$CHOICE" in
     "$OPT_1_NAME"*) run_script_1 ;;
