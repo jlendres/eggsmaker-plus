@@ -1,0 +1,12 @@
+sudo LANG=es_ES.UTF-8 ./eggsmaker
+sudo LANG=en_US.UTF-8 ./eggsmaker
+sudo LANG=pt_BR.UTF-8 ./eggsmaker
+sudo LANG=it_IT.UTF-8 ./eggsmaker
+
+# Método A: Pasando la variable DENTRO de la sesión sudo
+sudo env LANG=it_IT.UTF-8 ./eggsmaker.sh
+sudo env LANG=pt_BR.UTF-8 ./eggsmaker.sh
+
+# Método B: Preservando el entorno con -E
+LANG=it_IT.UTF-8 sudo -E ./eggsmaker.sh
+
