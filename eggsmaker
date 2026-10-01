@@ -130,7 +130,7 @@ export -f run_as_user
 LANG_SYS="${LANG:-es}"
 
 if [[ "$LANG_SYS" =~ ^es ]]; then
-  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker v$VERSION</b></span>\n<big>Herramientas de Administración de Sistema ($DISTRO_FAMILY)</big>\n"
+  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker v$VERSION</b></span>\n<big>Suite integrada para administración de Penguins Eggs y Paquetes</big>\n"
   TITLE_MAIN="Eggsmaker v$VERSION - Herramientas de Sistema"
   OPT_1_NAME="1. Generar ISO (Penguins Eggs)"
   OPT_1_DESC="Crear imagen ISO personalizada o clon del sistema"
