@@ -1,10 +1,9 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.2.1
+# Versión: 1.2.0
 # Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 #              Soporte multi-distro nativo: Arch (pacman/yay) y Debian/Ubuntu (apt)
-#              Ejecución nativa de Interfaces TUI/GUI (Calamares, Krill, Eggs Config)
 # ==============================================================================
 
 set -euo pipefail
@@ -27,6 +26,7 @@ if [ -f /etc/os-release ]; then
   fi
 fi
 
+# Fallback por presencia de ejecutables si os-release no es concluyente
 if [ "$DISTRO_FAMILY" = "unknown" ]; then
   if command -v pacman &>/dev/null; then
     DISTRO_FAMILY="arch"
@@ -75,15 +75,18 @@ REAL_USER="${SUDO_USER:-$USER}"
 REAL_HOME=$(eval echo "~$REAL_USER")
 HOST_NAME=$(hostname)
 
+# Carpeta de trabajo: /home/usuario/hostname-pak
 TARGET_DIR="$REAL_HOME/${HOST_NAME}-pak"
 mkdir -p "$TARGET_DIR"
 chown -R "$REAL_USER:" "$TARGET_DIR" 2>/dev/null || true
 
+# Ruta del icono del sistema / personalizado
 ICON_PATH="/usr/share/pixmaps/eggsmaker.png"
 if [ ! -f "$ICON_PATH" ]; then
   ICON_PATH="system-software-install"
 fi
 
+# Rutas de archivos dentro de la carpeta hostname-pak
 LOG_FILE="$TARGET_DIR/script.log"
 
 NATIVE_LIST="$TARGET_DIR/lista-nativo.txt"
@@ -99,7 +102,7 @@ AUR_RM_SEL="$TARGET_DIR/aur_remove.txt"
 FLATPAK_RM_SEL="$TARGET_DIR/flatpak_remove.txt"
 
 # ------------------------------------------------------------------------------
-# Ejecución en YAD (para salidas tipo Log de generación/instalación)
+# Ejecución en YAD (Visor de salida puro en ventana YAD)
 # ------------------------------------------------------------------------------
 run_in_yad() {
   local cmd_to_run="$1"
@@ -242,8 +245,7 @@ EOF
   ISO_DIR="/home/eggs"
 
   if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1" 2>/dev/null; then
-    # Ejecución nativa interactiva de TUI
-    eggs config
+    run_in_yad "eggs config" "$S1_TITLE - Configuración"
   fi
 
   DO_CLONE=0
@@ -302,7 +304,7 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# MÓDULO 2: Instalador Live (Calamares / Krill) - Ejecución Nativa
+# MÓDULO 2: Instalador Live (Calamares / Krill)
 # ------------------------------------------------------------------------------
 run_script_2() {
   INSTALLER=$(yad --window-icon="$ICON_PATH" --list --radiolist --title="$S2_TITLE" --text="$S2_PROMPT" \
@@ -313,11 +315,9 @@ run_script_2() {
 
   if [[ -n "$INSTALLER" ]]; then
     if [[ "$INSTALLER" =~ "Calamares" ]]; then
-      # Ejecución nativa GUI para Calamares
-      eggs sysinstall calamares
+      eggs sysinstall calamares 2>/dev/null || true
     elif [[ "$INSTALLER" =~ "Krill" ]]; then
-      # Ejecución nativa TUI en terminal para Krill
-      eggs sysinstall krill
+      run_in_yad "eggs sysinstall krill" "$S2_TITLE - Krill"
     fi
   fi
 }
