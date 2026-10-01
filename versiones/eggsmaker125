@@ -1,14 +1,14 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.2.3
+# Versión: 1.2.5
 # Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 #              Soporte multi-distro nativo: Arch (pacman/yay) y Debian/Ubuntu (apt)
 # ==============================================================================
 
 set -euo pipefail
 
-VERSION="1.2.3"
+VERSION="1.2.5"
 
 # ------------------------------------------------------------------------------
 # Detección de Distribución y Gestor de Paquetes
@@ -112,7 +112,7 @@ run_in_yad() {
     --button="Cerrar:0" 2>/dev/null || true
 }
 
-# Lanza comandos TUI en una ventana de terminal independiente
+# Lanza comandos TUI en una ventana de terminal independiente (modo bloqueante)
 run_in_terminal() {
   local cmd_to_run="$1"
   local title="${2:-Terminal}"
@@ -133,18 +133,18 @@ run_in_terminal() {
     return
   fi
 
-  # Comando envuelto para mantener la terminal abierta al finalizar
+  # Comando envuelto para mantener la terminal abierta hasta presionar Enter
   local wrapped_cmd="bash -c \"$cmd_to_run; echo; read -p 'Presione Enter para continuar...' -n1\""
 
   case "$term" in
     gnome-terminal|x-terminal-emulator)
-      eval "$env_vars" "$term" --title="$title" -- $wrapped_cmd 2>/dev/null || eval "$wrapped_cmd"
+      eval "$env_vars" "$term" --wait --title="$title" -- $wrapped_cmd 2>/dev/null || eval "$wrapped_cmd"
       ;;
     xfce4-terminal)
-      eval "$env_vars" "$term" --title="$title" -e "$wrapped_cmd" 2>/dev/null || eval "$wrapped_cmd"
+      eval "$env_vars" "$term" --disable-server --title="$title" -e "$wrapped_cmd" 2>/dev/null || eval "$wrapped_cmd"
       ;;
     konsole)
-      eval "$env_vars" "$term" -p tabtitle="$title" -e $wrapped_cmd 2>/dev/null || eval "$wrapped_cmd"
+      eval "$env_vars" "$term" --nofork -p tabtitle="$title" -e $wrapped_cmd 2>/dev/null || eval "$wrapped_cmd"
       ;;
     alacritty|kitty|xterm)
       eval "$env_vars" "$term" -T "$title" -e $wrapped_cmd 2>/dev/null || eval "$wrapped_cmd"
@@ -280,7 +280,6 @@ EOF
 
   ISO_DIR="/home/eggs"
 
-  # Control explícito con 'if ... ; then ... fi' para evitar cierres por exit code con 'set -e'
   if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1" 2>/dev/null; then
     run_in_terminal "eggs config" "$S1_TITLE - Configuración"
   fi
@@ -311,19 +310,21 @@ EOF
 
     if [[ -n "$ISO_FILE" ]]; then
       FILENAME=$(basename "$ISO_FILE")
-      run_in_yad "
+      run_in_terminal "
         echo 'Copiando archivo: $FILENAME'
         echo 'Destino: $DESTINO'
         echo '---------------------------------------------------'
         rsync --info=progress2 -h '$ISO_FILE' '$DESTINO/'
+        echo
         echo '✔ Copia completada.'
       " "$S1_TITLE - Copiando ISO"
     else
-      run_in_yad "
+      run_in_terminal "
         echo 'Copiando contenido de: $ISO_DIR/'
         echo 'Destino: $DESTINO/'
         echo '---------------------------------------------------'
         rsync --info=progress2 -ah '$ISO_DIR/' '$DESTINO/'
+        echo
         echo '✔ Copia completada.'
       " "$S1_TITLE - Copiando ISO"
     fi
