@@ -1,14 +1,14 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.2.3
+# Versión: 1.2.4
 # Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 #              Soporte multi-distro nativo: Arch (pacman/yay) y Debian/Ubuntu (apt)
 # ==============================================================================
 
 set -euo pipefail
 
-VERSION="1.2.3"
+VERSION="1.2.4"
 
 # ------------------------------------------------------------------------------
 # Detección de Distribución y Gestor de Paquetes
@@ -181,8 +181,10 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   OPT_EXIT_DESC="Cerrar la aplicación"
 
   S1_TITLE="Eggsmaker v$VERSION - Generador ISO"
+  S1_CONF_SKEL="¿Desea copiar la configuración del escritorio (sudo eggs tools skel)?"
   S1_CONF_CFG="¿Desea realizar cambios en la configuración de eggs (eggs config)?"
   S1_CONF_CLONE="¿Desea realizar un clon del sistema (--clone)?"
+  S1_CONF_START="¿Está seguro de iniciar la generación de la ISO?"
   S1_DEST_TITLE="Seleccione la carpeta de destino para la ISO"
   S1_COPY_OMIT="¿Desea omitir la copia de la ISO?"
   S1_COPY_AGAIN="¿Desea realizar otra copia a un destino distinto?"
@@ -210,8 +212,10 @@ else
   OPT_EXIT_DESC="Close application"
 
   S1_TITLE="Eggsmaker v$VERSION - ISO Generator"
+  S1_CONF_SKEL="Do you want to copy desktop configurations (sudo eggs tools skel)?"
   S1_CONF_CFG="Do you want to edit eggs configuration (eggs config)?"
   S1_CONF_CLONE="Do you want to create a system clone (--clone)?"
+  S1_CONF_START="Are you sure you want to start ISO generation?"
   S1_DEST_TITLE="Select destination directory for the ISO"
   S1_COPY_OMIT="Do you want to skip copying the ISO?"
   S1_COPY_AGAIN="Do you want to copy the ISO to another location?"
@@ -280,16 +284,28 @@ EOF
 
   ISO_DIR="/home/eggs"
 
-  # Control explícito con 'if ... ; then ... fi' para evitar cierres por exit code con 'set -e'
+  # 1. Pregunta previa: Copiar configuración del escritorio a /etc/skel
+  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_SKEL" --button="Sí:0" --button="No:1" 2>/dev/null; then
+    run_in_terminal "eggs tools skel" "$S1_TITLE - Configuración de Escritorio (Skel)"
+  fi
+
+  # 2. Configuración de eggs
   if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1" 2>/dev/null; then
     run_in_terminal "eggs config" "$S1_TITLE - Configuración"
   fi
 
+  # 3. Opción de clonar
   DO_CLONE=0
   if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CLONE" --button="Sí:0" --button="No:1" 2>/dev/null; then
     DO_CLONE=1
   fi
 
+  # 4. Confirmación final antes de iniciar la generación
+  if ! yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_START" --button="Sí:0" --button="No:1" 2>/dev/null; then
+    return 0
+  fi
+
+  # Proceso de generación
   if [[ $DO_CLONE -eq 1 ]]; then
     run_in_yad "eggs kill && eggs tools clean && eggs remaster --clone" "$S1_TITLE - Creando Clon ISO"
   else
@@ -367,9 +383,12 @@ recopilar_listas() {
   rm -f "$NATIVE_LIST" "$AUR_LIST" "$FLATPAK_LIST"
 
   if [ "$DISTRO_FAMILY" = "arch" ]; then
-    pacman -Qqetn | sort | grep -vwE '^(base|base-devel)$' > "$NATIVE_LIST" || true
+    # -Qqe incluye todos los paquetes instalados explícitamente (evita omitir sub-componentes o librerías de entornos de escritorio)
+    pacman -Qqe | sort | grep -vwE '^(base|base-devel)$' > "$NATIVE_LIST" || true
     if command -v yay &>/dev/null; then
-      pacman -Qqetm | sort > "$AUR_LIST" || true
+      pacman -Qqem | sort > "$AUR_LIST" || true
+      # Filtrar AUR del listado nativo para no duplicar entradas
+      grep -vxf "$AUR_LIST" "$NATIVE_LIST" > "${NATIVE_LIST}.tmp" && mv "${NATIVE_LIST}.tmp" "$NATIVE_LIST" || true
     fi
   elif [ "$DISTRO_FAMILY" = "debian" ]; then
     if command -v apt-mark &>/dev/null; then
