@@ -67,6 +67,30 @@ asegurar_dependencias() {
 
 asegurar_dependencias
 
+validar_entorno() {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Este script requiere permisos de root. Ejecútalo con sudo."
+    if command -v yad >/dev/null 2>&1; then
+      yad --window-icon="${ICON_PATH:-system-software-install}" --title="Eggsmaker" \
+        --image="dialog-error" --text="Este script requiere permisos de root.\nEjecuta: sudo ./eggsmaker" \
+        --button="Aceptar:0" 2>/dev/null || true
+    fi
+    exit 1
+  fi
+
+  if ! command -v eggs >/dev/null 2>&1; then
+    echo "Penguins Eggs no está instalado o no está en el PATH."
+    if command -v yad >/dev/null 2>&1; then
+      yad --window-icon="${ICON_PATH:-system-software-install}" --title="Eggsmaker" \
+        --image="dialog-error" --text="Penguins Eggs no está instalado o no está disponible en el PATH.\nInstálalo antes de usar Eggsmaker." \
+        --button="Aceptar:0" 2>/dev/null || true
+    fi
+    exit 1
+  fi
+}
+
+validar_entorno
+
 # ------------------------------------------------------------------------------
 # Detección del Usuario Real y Entorno Gráfico
 # ------------------------------------------------------------------------------
@@ -81,6 +105,12 @@ chown -R "$REAL_USER:" "$TARGET_DIR" 2>/dev/null || true
 ICON_PATH="/usr/share/pixmaps/eggsmaker.png"
 if [ ! -f "$ICON_PATH" ]; then
   ICON_PATH="system-software-install"
+fi
+
+# Se usa el icono genérico si no existe el icono de la aplicación.
+WINDOW_ICON="$ICON_PATH"
+if [ ! -f "$ICON_PATH" ] || [ "$ICON_PATH" = "system-software-install" ]; then
+  WINDOW_ICON="system-software-install"
 fi
 
 LOG_FILE="$TARGET_DIR/script.log"
@@ -105,7 +135,7 @@ run_in_yad() {
   local title="${2:-Ejecutando proceso...}"
 
   bash -c "$cmd_to_run" 2>&1 | yad --text-info \
-    --window-icon="$ICON_PATH" \
+    --window-icon="$WINDOW_ICON" \
     --title="$title" \
     --width=800 --height=500 \
     --tail \
@@ -169,8 +199,8 @@ export -f run_as_user
 LANG_SYS="${LANG:-es}"
 
 if [[ "$LANG_SYS" =~ ^es ]]; then
-  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker v$VERSION</b></span>\n<big>Suite integrada para administración de Penguins Eggs y Paquetes</big>\n"
-  TITLE_MAIN="Eggsmaker v$VERSION - Herramientas de Sistema"
+  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Versión $VERSION • ISO, clonación y gestión de paquetes</small>\n"
+  TITLE_MAIN="Eggsmaker Plus v$VERSION"
   OPT_1_NAME="1. Generar ISO (Penguins Eggs)"
   OPT_1_DESC="Crear imagen ISO personalizada o clon del sistema"
   OPT_2_NAME="2. Instalación Live (Calamares / Krill)"
@@ -180,7 +210,7 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   OPT_EXIT="Salir"
   OPT_EXIT_DESC="Cerrar la aplicación"
 
-  S1_TITLE="Eggsmaker v$VERSION - Generador ISO"
+  S1_TITLE="Eggsmaker Plus - Generador ISO"
   S1_CONF_SKEL="¿Desea copiar la configuración del escritorio (sudo eggs tools skel)?"
   S1_CONF_CFG="¿Desea realizar cambios en la configuración de eggs (eggs config)?"
   S1_CONF_CLONE="¿Desea realizar un clon del sistema (--clone)?"
@@ -191,17 +221,17 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   S1_CONF_KILL="¿Desea eliminar los archivos temporales de construcción (eggs kill)?"
   S1_FINISH="Proceso finalizado correctamente."
 
-  S2_TITLE="Eggsmaker v$VERSION - Instalador del Sistema"
+  S2_TITLE="Eggsmaker Plus - Instalador del Sistema"
   S2_PROMPT="Seleccione el instalador a ejecutar:"
 
-  S3_TITLE="Eggsmaker v$VERSION - Gestor de Paquetes ($DISTRO_FAMILY)"
+  S3_TITLE="Eggsmaker Plus - Gestor de Paquetes ($DISTRO_FAMILY)"
   S3_REC="Recopilar paquetes instalados"
   S3_SEL="Seleccionar paquetes"
   S3_EXE="Ejecutar proceso"
   S3_BACK="Volver al menú anterior"
 else
-  HEADER_TITLE="<span foreground='#3584e4' size='x-large'><b>Eggsmaker v$VERSION</b></span>\n<big>System Administration Suite ($DISTRO_FAMILY)</big>\n"
-  TITLE_MAIN="Eggsmaker v$VERSION - System Tools"
+  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Version $VERSION • ISO, cloning, and package management</small>\n"
+  TITLE_MAIN="Eggsmaker Plus v$VERSION"
   OPT_1_NAME="1. Generate ISO (Penguins Eggs)"
   OPT_1_DESC="Create a custom ISO image or system clone"
   OPT_2_NAME="2. Live Installation (Calamares / Krill)"
@@ -211,7 +241,7 @@ else
   OPT_EXIT="Exit"
   OPT_EXIT_DESC="Close application"
 
-  S1_TITLE="Eggsmaker v$VERSION - ISO Generator"
+  S1_TITLE="Eggsmaker Plus - ISO Generator"
   S1_CONF_SKEL="Do you want to copy desktop configurations (sudo eggs tools skel)?"
   S1_CONF_CFG="Do you want to edit eggs configuration (eggs config)?"
   S1_CONF_CLONE="Do you want to create a system clone (--clone)?"
@@ -222,10 +252,10 @@ else
   S1_CONF_KILL="Do you want to remove temporary build files (eggs kill)?"
   S1_FINISH="Process completed successfully."
 
-  S2_TITLE="Eggsmaker v$VERSION - System Installer"
+  S2_TITLE="Eggsmaker Plus - System Installer"
   S2_PROMPT="Select installer to run:"
 
-  S3_TITLE="Eggsmaker v$VERSION - Package Manager ($DISTRO_FAMILY)"
+  S3_TITLE="Eggsmaker Plus - Package Manager ($DISTRO_FAMILY)"
   S3_REC="Collect installed packages"
   S3_SEL="Select packages"
   S3_EXE="Execute process"
@@ -285,23 +315,23 @@ EOF
   ISO_DIR="/home/eggs"
 
   # 1. Pregunta previa: Copiar configuración del escritorio a /etc/skel
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_SKEL" --button="Sí:0" --button="No:1" 2>/dev/null; then
+  if yad --window-icon="$WINDOW_ICON" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_SKEL" --button="Sí:0" --button="No:1" 2>/dev/null; then
     run_in_terminal "eggs tools skel" "$S1_TITLE - Configuración de Escritorio (Skel)"
   fi
 
   # 2. Configuración de eggs
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1" 2>/dev/null; then
+  if yad --window-icon="$WINDOW_ICON" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CFG" --button="Sí:0" --button="No:1" 2>/dev/null; then
     run_in_terminal "eggs config" "$S1_TITLE - Configuración"
   fi
 
   # 3. Opción de clonar
   DO_CLONE=0
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CLONE" --button="Sí:0" --button="No:1" 2>/dev/null; then
+  if yad --window-icon="$WINDOW_ICON" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_CLONE" --button="Sí:0" --button="No:1" 2>/dev/null; then
     DO_CLONE=1
   fi
 
   # 4. Confirmación final antes de iniciar la generación
-  if ! yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_START" --button="Sí:0" --button="No:1" 2>/dev/null; then
+  if ! yad --window-icon="$WINDOW_ICON" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_START" --button="Sí:0" --button="No:1" 2>/dev/null; then
     return 0
   fi
 
@@ -315,10 +345,10 @@ EOF
   ISO_FILE=$(ls -t "$ISO_DIR"/*.iso 2>/dev/null | head -n 1 || true)
 
   while true; do
-    DESTINO=$(yad --window-icon="$ICON_PATH" --file --directory --title="$S1_DEST_TITLE" 2>/dev/null || true)
+    DESTINO=$(yad --window-icon="$WINDOW_ICON" --file --directory --title="$S1_DEST_TITLE" 2>/dev/null || true)
 
     if [[ -z "$DESTINO" ]]; then
-      if yad --window-icon="$ICON_PATH" --image="dialog-warning" --title="$S1_TITLE" --text="$S1_COPY_OMIT" --button="Sí:0" --button="No:1" 2>/dev/null; then
+      if yad --window-icon="$WINDOW_ICON" --image="dialog-warning" --title="$S1_TITLE" --text="$S1_COPY_OMIT" --button="Sí:0" --button="No:1" 2>/dev/null; then
         break
       else
         continue
@@ -344,23 +374,23 @@ EOF
       " "$S1_TITLE - Copiando ISO"
     fi
 
-    if ! yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_COPY_AGAIN" --button="Sí:0" --button="No:1" 2>/dev/null; then
+    if ! yad --window-icon="$WINDOW_ICON" --image="dialog-question" --title="$S1_TITLE" --text="$S1_COPY_AGAIN" --button="Sí:0" --button="No:1" 2>/dev/null; then
       break
     fi
   done
 
-  if yad --window-icon="$ICON_PATH" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_KILL" --button="Sí:0" --button="No:1" 2>/dev/null; then
+  if yad --window-icon="$WINDOW_ICON" --image="dialog-question" --title="$S1_TITLE" --text="$S1_CONF_KILL" --button="Sí:0" --button="No:1" 2>/dev/null; then
     eggs kill 2>/dev/null || true
   fi
 
-  yad --window-icon="$ICON_PATH" --title="$S1_TITLE" --image="dialog-information" --text="$S1_FINISH" --button="Aceptar:0" 2>/dev/null || true
+  yad --window-icon="$WINDOW_ICON" --title="$S1_TITLE" --image="dialog-information" --text="$S1_FINISH" --button="Aceptar:0" 2>/dev/null || true
 }
 
 # ------------------------------------------------------------------------------
 # MÓDULO 2: Instalador Live (Calamares / Krill)
 # ------------------------------------------------------------------------------
 run_script_2() {
-  INSTALLER=$(yad --window-icon="$ICON_PATH" --list --radiolist --title="$S2_TITLE" --text="$S2_PROMPT" \
+  INSTALLER=$(yad --window-icon="$WINDOW_ICON" --list --radiolist --title="$S2_TITLE" --text="$S2_PROMPT" \
     --column="Sel" --column="Opción" --column="Comando" \
     TRUE "Calamares (GUI)" "eggs sysinstall calamares" \
     FALSE "Krill (TUI)" "eggs sysinstall krill" \
@@ -416,7 +446,7 @@ recopilar_listas() {
   fi
   info_text+="\nFlatpak: $fl_cnt"
 
-  yad --window-icon="$ICON_PATH" --title="$S3_TITLE" \
+  yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" \
     --image="dialog-information" \
     --text="$info_text" \
     --button="Aceptar:0" 2>/dev/null || true
@@ -426,24 +456,62 @@ selector_paquetes() {
   local titulo="$1" lista="$2" sel_prev="$3" tipo="$4"
   [[ -s "$lista" ]] || return 0
 
-  local -a opciones=()
-  while IFS= read -r pkg; do
-    [[ -n "$pkg" ]] || continue
-    local checked="FALSE"
-    [[ -f "$sel_prev" ]] && grep -qxF "$pkg" "$sel_prev" && checked="TRUE"
-    opciones+=("$checked" "$pkg" "$tipo")
-  done < "$lista"
-
-  local seleccion
-  seleccion=$(yad --window-icon="$ICON_PATH" --list --checklist --title="$titulo" \
-    --width=800 --height=500 --center \
-    --column="CHK" --column="Paquete" --column="Tipo" \
-    "${opciones[@]}" --print-column=2 --separator=$'\n' 2>/dev/null || true)
-
-  if [[ -n "$seleccion" ]]; then
-    echo "$seleccion" > "$sel_prev"
-    chown "$REAL_USER:" "$sel_prev" 2>/dev/null || true
+  local seleccion=""
+  local preseleccion=""
+  if [[ -f "$sel_prev" ]]; then
+    preseleccion=$(tr -d '\r' < "$sel_prev" 2>/dev/null || true)
   fi
+
+  while true; do
+    local -a opciones=()
+    while IFS= read -r pkg; do
+      [[ -n "$pkg" ]] || continue
+      local checked="FALSE"
+      if [[ -n "$preseleccion" ]] && grep -qxF "$pkg" <<< "$preseleccion" >/dev/null 2>&1; then
+        checked="TRUE"
+      fi
+      opciones+=("$checked" "$pkg" "$tipo")
+    done < "$lista"
+
+    set +e
+    seleccion=$(yad --window-icon="$WINDOW_ICON" --list --checklist --title="$titulo" \
+      --width=800 --height=500 --center \
+      --column="CHK" --column="Paquete" --column="Tipo" \
+      "${opciones[@]}" \
+      --print-column=2 --separator=$'\n' \
+      --button="Seleccionar todo:1" \
+      --button="Deseleccionar todo:2" \
+      --button="Aceptar:0" 2>/dev/null)
+    local rc=$?
+    set -e
+
+    case "$rc" in
+      1)
+        preseleccion=$(sed '/^$/d' "$lista" | paste -sd '\n' -)
+        printf '%s\n' "$preseleccion" > "$sel_prev"
+        chown "$REAL_USER:" "$sel_prev" 2>/dev/null || true
+        continue
+        ;;
+      2)
+        preseleccion=""
+        : > "$sel_prev"
+        chown "$REAL_USER:" "$sel_prev" 2>/dev/null || true
+        continue
+        ;;
+      0)
+        if [[ -n "${seleccion:-}" ]]; then
+          printf '%s\n' "$seleccion" > "$sel_prev"
+        else
+          : > "$sel_prev"
+        fi
+        chown "$REAL_USER:" "$sel_prev" 2>/dev/null || true
+        return 0
+        ;;
+      *)
+        return 0
+        ;;
+    esac
+  done
 }
 
 instalar_paquetes() {
@@ -481,14 +549,14 @@ instalar_paquetes() {
   if [[ -n "$cmd_chain" ]]; then
     run_in_yad "$cmd_chain" "$S3_TITLE - Instalación"
   else
-    yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-warning" \
+    yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" --image="dialog-warning" \
       --text="No hay paquetes seleccionados para instalar." \
       --button="Aceptar:0" 2>/dev/null || true
     return
   fi
 
   log_msg "Instalación completada"
-  yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-information" \
+  yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" --image="dialog-information" \
     --text="Proceso de instalación finalizado.\nConsulte $LOG_FILE para detalles." \
     --button="Aceptar:0" 2>/dev/null || true
 }
@@ -528,21 +596,21 @@ desinstalar_paquetes() {
   if [[ -n "$cmd_chain" ]]; then
     run_in_yad "$cmd_chain" "$S3_TITLE - Desinstalación"
   else
-    yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-warning" \
+    yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" --image="dialog-warning" \
       --text="No hay paquetes seleccionados para desinstalar." \
       --button="Aceptar:0" 2>/dev/null || true
     return
   fi
 
   log_msg "Desinstalación completada"
-  yad --window-icon="$ICON_PATH" --title="$S3_TITLE" --image="dialog-information" \
+  yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" --image="dialog-information" \
     --text="Proceso de desinstalación finalizado.\nConsulte $LOG_FILE para detalles." \
     --button="Aceptar:0" 2>/dev/null || true
 }
 
 run_script_3() {
   while true; do
-    ACTION=$(yad --window-icon="$ICON_PATH" --list --title="$S3_TITLE" --width=520 --height=350 \
+    ACTION=$(yad --window-icon="$WINDOW_ICON" --list --title="$S3_TITLE" --width=520 --height=350 \
       --column="Acción" --column="Descripción" \
       "1. $S3_REC" "Generar archivos en $TARGET_DIR" \
       "2. $S3_SEL (Instalar)" "Elegir paquetes para instalar" \
@@ -588,7 +656,7 @@ run_script_3() {
 # BUCLE PRINCIPAL
 # ------------------------------------------------------------------------------
 while true; do
-  CHOICE=$(yad --window-icon="$ICON_PATH" --list --title="$TITLE_MAIN" \
+  CHOICE=$(yad --window-icon="$WINDOW_ICON" --list --title="$TITLE_MAIN" \
     --text="$HEADER_TITLE" \
     --width=650 --height=430 --center \
     --column="Herramienta" --column="Descripción" \
