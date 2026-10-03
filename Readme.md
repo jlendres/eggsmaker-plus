@@ -21,6 +21,8 @@ Eggsmaker Plus is a practical system tool for creating customized Linux ISOs, cl
 
 ## Español
 
+**Ahora que penguins-eggs está maduro y mejor que nunca, gracias al gran trabajo de mi amigo Piero Proietti (https://penguins-eggs.net/), es el momento de hacer un aporte al proyecto.**
+
 Durante 2025 creé Eggsmaker como una herramienta gráfica para ejecutar los comandos más útiles de Penguins Eggs. Con el paso del tiempo, la necesidad de mantenerla actualizada y adaptar cada cambio del proyecto hizo que el proceso se volviera tedioso, así que busqué una alternativa más simple y mantenible.
 
 Así nació Eggsmaker Plus: una suite de administración del sistema pensada para facilitar la creación de ISOs personalizadas, clonar el sistema actual y gestionar aplicaciones instaladas de forma centralizada. La idea es reducir la carga de comandos manuales y dejar disponible una interfaz más práctica para tareas frecuentes.
