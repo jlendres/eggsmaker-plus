@@ -1,14 +1,14 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.2.4
+# Versión: 1.2.5
 # Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 #              Soporte multi-distro nativo: Arch (pacman/yay) y Debian/Ubuntu (apt)
 # ==============================================================================
 
 set -euo pipefail
 
-VERSION="1.2.4"
+VERSION="1.2.5"
 
 # ------------------------------------------------------------------------------
 # Detección de Distribución y Gestor de Paquetes
@@ -276,31 +276,17 @@ run_script_1() {
 #!/bin/bash
 set -euo pipefail
 
-LAUNCHER_SYS="/usr/share/applications/install-system.desktop"
-if [ -f "$LAUNCHER_SYS" ]; then
-  chmod +x "$LAUNCHER_SYS"
-fi
+  LAUNCHER="/usr/share/applications/install-system.desktop"
+  if [ -f "$LAUNCHER" ]; then
+    chmod +x "$LAUNCHER"
 
-for desktop_dir in /home/*/[D|d]esktop /root/[D|d]esktop; do
-  if [ -d "$desktop_dir" ]; then
-    TARGET_LAUNCHER="$desktop_dir/install-system.desktop"
-
-    if [ ! -f "$TARGET_LAUNCHER" ] && [ -f "$LAUNCHER_SYS" ]; then
-      cp "$LAUNCHER_SYS" "$TARGET_LAUNCHER"
-    fi
-
-    if [ -f "$TARGET_LAUNCHER" ]; then
-      chmod +x "$TARGET_LAUNCHER"
-
-      if command -v gio >/dev/null 2>&1; then
-        gio set "$TARGET_LAUNCHER" metadata::trusted yes 2>/dev/null || true
-        if command -v sha256sum >/dev/null 2>&1; then
-          gio set "$TARGET_LAUNCHER" metadata::xfce-exe-checksum "$(sha256sum "$TARGET_LAUNCHER" | awk '{print $1}')" 2>/dev/null || true
-        fi
+    if command -v gio >/dev/null 2>&1; then
+      gio set "$LAUNCHER" metadata::trusted yes 2>/dev/null || true
+      if command -v sha256sum >/dev/null 2>&1; then
+        gio set "$LAUNCHER" metadata::xfce-exe-checksum "$(sha256sum "$LAUNCHER" | awk '{print $1}')" 2>/dev/null || true
       fi
-    fi
   fi
-done
+  fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database -q /usr/share/applications >/dev/null 2>&1 || true
