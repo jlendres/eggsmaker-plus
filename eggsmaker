@@ -1,14 +1,14 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.2.5
+# Versión: 1.2.6
 # Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 #              Soporte multi-distro nativo: Arch (pacman/yay) y Debian/Ubuntu (apt)
 # ==============================================================================
 
 set -euo pipefail
 
-VERSION="1.2.5"
+VERSION="1.2.6"
 
 # ------------------------------------------------------------------------------
 # Detección de Distribución y Gestor de Paquetes
@@ -413,6 +413,22 @@ recopilar_listas() {
       dpkg-query -f '${binary:Package}\n' -W | sort > "$NATIVE_LIST" || true
     fi
   fi
+
+  # Priorizar paquetes que instalan lanzadores gráficos; mantener el resto después.
+  local app_pkgs="${NATIVE_LIST}.apps"
+  local rest_pkgs="${NATIVE_LIST}.rest"
+  : > "$app_pkgs"
+  if [ "$DISTRO_FAMILY" = "arch" ]; then
+    pacman -Ql | awk '$2 ~ /^\/usr\/share\/applications\/[^/]+\.desktop$/ { print $1 }' | sort -u > "$app_pkgs" || true
+  elif [ "$DISTRO_FAMILY" = "debian" ]; then
+    dpkg-query -S '/usr/share/applications/*.desktop' 2>/dev/null | awk -F ': ' '{ print $1 }' | sort -u > "$app_pkgs" || true
+  fi
+  grep -Fxf "$app_pkgs" "$NATIVE_LIST" > "$rest_pkgs" || true
+  local app_list="${NATIVE_LIST}.tmp"
+  grep -Fvx -f "$app_pkgs" "$NATIVE_LIST" >> "$rest_pkgs" || true
+  cat "$rest_pkgs" > "$app_list"
+  mv "$app_list" "$NATIVE_LIST"
+  rm -f "$app_pkgs" "$rest_pkgs"
 
   if command -v flatpak &>/dev/null; then
     run_as_user "flatpak list --app --columns=application" > "$FLATPAK_LIST" 2>/dev/null || true
