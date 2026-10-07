@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="1.2.7"
+VERSION="1.2.6"
 
 # ------------------------------------------------------------------------------
 # Detección de Distribución y Gestor de Paquetes
@@ -91,9 +91,6 @@ validar_entorno() {
 
 validar_entorno
 
-EGGS_VERSION=$(eggs --version 2>/dev/null | awk '{print $NF}') || EGGS_VERSION=""
-EGGS_VERSION="${EGGS_VERSION:-desconocida}"
-
 # ------------------------------------------------------------------------------
 # Detección del Usuario Real y Entorno Gráfico
 # ------------------------------------------------------------------------------
@@ -120,17 +117,14 @@ LOG_FILE="$TARGET_DIR/script.log"
 
 NATIVE_LIST="$TARGET_DIR/lista-nativo.txt"
 AUR_LIST="$TARGET_DIR/lista-aur.txt"
-CHAOTIC_LIST="$TARGET_DIR/lista-chaotic-aur.txt"
 FLATPAK_LIST="$TARGET_DIR/lista-flatpak.txt"
 
 NATIVE_SEL="$TARGET_DIR/nativo_selected.txt"
 AUR_SEL="$TARGET_DIR/aur_selected.txt"
-CHAOTIC_SEL="$TARGET_DIR/chaotic_aur_selected.txt"
 FLATPAK_SEL="$TARGET_DIR/flatpak_selected.txt"
 
 NATIVE_RM_SEL="$TARGET_DIR/nativo_remove.txt"
 AUR_RM_SEL="$TARGET_DIR/aur_remove.txt"
-CHAOTIC_RM_SEL="$TARGET_DIR/chaotic_aur_remove.txt"
 FLATPAK_RM_SEL="$TARGET_DIR/flatpak_remove.txt"
 
 # ------------------------------------------------------------------------------
@@ -205,7 +199,7 @@ export -f run_as_user
 LANG_SYS="${LANG:-es}"
 
 if [[ "$LANG_SYS" =~ ^es ]]; then
-  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Versión $VERSION • Penguins Eggs $EGGS_VERSION • ISO, clonación y gestión de paquetes</small>\n"
+  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Versión $VERSION • ISO, clonación y gestión de paquetes</small>\n"
   TITLE_MAIN="Eggsmaker Plus v$VERSION"
   OPT_1_NAME="1. Generar ISO (Penguins Eggs)"
   OPT_1_DESC="Crear imagen ISO personalizada o clon del sistema"
@@ -236,7 +230,7 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   S3_EXE="Ejecutar proceso"
   S3_BACK="Volver al menú anterior"
 else
-  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Version $VERSION • Penguins Eggs $EGGS_VERSION • ISO, cloning, and package management</small>\n"
+  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Version $VERSION • ISO, cloning, and package management</small>\n"
   TITLE_MAIN="Eggsmaker Plus v$VERSION"
   OPT_1_NAME="1. Generate ISO (Penguins Eggs)"
   OPT_1_DESC="Create a custom ISO image or system clone"
@@ -276,34 +270,33 @@ log_msg() {
 # MÓDULO 1: Generador de Imágenes ISO
 # ------------------------------------------------------------------------------
 run_script_1() {
-  # Modificación de trust-desktop.sh desactivada temporalmente; se conserva por si se necesita.
-  # DST="/etc/penguins-eggs.d/scripts/trust-desktop.sh"
-  # mkdir -p "$(dirname "$DST")"
-  # cat << 'EOF' > "$DST"
-  #!/bin/bash
-  # set -euo pipefail
-  #
-  # LAUNCHER="/usr/share/applications/install-system.desktop"
-  # if [ -f "$LAUNCHER" ]; then
-  #   chmod +x "$LAUNCHER"
-  #
-  #   if command -v gio >/dev/null 2>&1; then
-  #     gio set "$LAUNCHER" metadata::trusted yes 2>/dev/null || true
-  #     if command -v sha256sum >/dev/null 2>&1; then
-  #       gio set "$LAUNCHER" metadata::xfce-exe-checksum "$(sha256sum "$LAUNCHER" | awk '{print $1}')" 2>/dev/null || true
-  #     fi
-  # fi
-  # fi
-  #
-  # if command -v update-desktop-database >/dev/null 2>&1; then
-  #   update-desktop-database -q /usr/share/applications >/dev/null 2>&1 || true
-  # fi
-  #
-  # if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  #   gtk-update-icon-cache -f /usr/share/icons/* >/dev/null 2>&1 || true
-  # fi
-  # EOF
-  # chmod +x "$DST"
+  DST="/etc/penguins-eggs.d/scripts/trust-desktop.sh"
+  mkdir -p "$(dirname "$DST")"
+  cat << 'EOF' > "$DST"
+#!/bin/bash
+set -euo pipefail
+
+  LAUNCHER="/usr/share/applications/install-system.desktop"
+  if [ -f "$LAUNCHER" ]; then
+    chmod +x "$LAUNCHER"
+
+    if command -v gio >/dev/null 2>&1; then
+      gio set "$LAUNCHER" metadata::trusted yes 2>/dev/null || true
+      if command -v sha256sum >/dev/null 2>&1; then
+        gio set "$LAUNCHER" metadata::xfce-exe-checksum "$(sha256sum "$LAUNCHER" | awk '{print $1}')" 2>/dev/null || true
+      fi
+  fi
+  fi
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database -q /usr/share/applications >/dev/null 2>&1 || true
+fi
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f /usr/share/icons/* >/dev/null 2>&1 || true
+fi
+EOF
+  chmod +x "$DST"
 
   ISO_DIR="/home/eggs"
 
@@ -403,29 +396,16 @@ run_script_2() {
 # ------------------------------------------------------------------------------
 recopilar_listas() {
   log_msg "Generando listas de paquetes en: $TARGET_DIR (Distro: $DISTRO_FAMILY)"
-  rm -f "$NATIVE_LIST" "$AUR_LIST" "$CHAOTIC_LIST" "$FLATPAK_LIST"
-  : > "$AUR_LIST"
-  : > "$CHAOTIC_LIST"
+  rm -f "$NATIVE_LIST" "$AUR_LIST" "$FLATPAK_LIST"
 
   if [ "$DISTRO_FAMILY" = "arch" ]; then
     # -Qqe incluye todos los paquetes instalados explícitamente (evita omitir sub-componentes o librerías de entornos de escritorio)
     pacman -Qqe | sort | grep -vwE '^(base|base-devel)$' > "$NATIVE_LIST" || true
     if command -v yay &>/dev/null; then
       pacman -Qqem | sort > "$AUR_LIST" || true
+      # Filtrar AUR del listado nativo para no duplicar entradas
+      grep -vxf "$AUR_LIST" "$NATIVE_LIST" > "${NATIVE_LIST}.tmp" && mv "${NATIVE_LIST}.tmp" "$NATIVE_LIST" || true
     fi
-
-    # Filtrar AUR del listado nativo antes de detectar repositorios sincronizados.
-    grep -vxf "$AUR_LIST" "$NATIVE_LIST" > "${NATIVE_LIST}.tmp" || true
-    mv "${NATIVE_LIST}.tmp" "$NATIVE_LIST"
-
-    local chaotic_repo_list="${CHAOTIC_LIST}.repo"
-    pacman -Sl chaotic-aur 2>/dev/null | awk '$1 == "chaotic-aur" { print $2 }' > "$chaotic_repo_list" || true
-    grep -Fxf "$chaotic_repo_list" "$NATIVE_LIST" > "$CHAOTIC_LIST" || true
-    rm -f "$chaotic_repo_list"
-
-    # Evitar duplicados entre los listados nativo y Chaotic-AUR.
-    grep -vxf "$CHAOTIC_LIST" "$NATIVE_LIST" > "${NATIVE_LIST}.tmp" || true
-    mv "${NATIVE_LIST}.tmp" "$NATIVE_LIST"
   elif [ "$DISTRO_FAMILY" = "debian" ]; then
     if command -v apt-mark &>/dev/null; then
       apt-mark showmanual | sort > "$NATIVE_LIST" || true
@@ -458,15 +438,13 @@ recopilar_listas() {
 
   nat_cnt=$(wc -l < "$NATIVE_LIST" 2>/dev/null || echo 0)
   aur_cnt=$(wc -l < "$AUR_LIST" 2>/dev/null || echo 0)
-  chaotic_cnt=$(wc -l < "$CHAOTIC_LIST" 2>/dev/null || echo 0)
   fl_cnt=$(wc -l < "$FLATPAK_LIST" 2>/dev/null || echo 0)
 
-  log_msg "Nativos ($DISTRO_FAMILY): $nat_cnt | AUR: $aur_cnt | Chaotic-AUR: $chaotic_cnt | Flatpak: $fl_cnt"
+  log_msg "Nativos ($DISTRO_FAMILY): $nat_cnt | AUR: $aur_cnt | Flatpak: $fl_cnt"
 
   local info_text="Listas guardadas en:\n<b>$TARGET_DIR</b>\n\nSistema: <b>$DISTRO_FAMILY</b>\nPaquetes Nativos: $nat_cnt"
   if [ "$DISTRO_FAMILY" = "arch" ]; then
     info_text+="\nYay (AUR): $aur_cnt"
-    info_text+="\nChaotic-AUR: $chaotic_cnt"
   fi
   info_text+="\nFlatpak: $fl_cnt"
 
@@ -562,14 +540,6 @@ instalar_paquetes() {
     fi
   fi
 
-  if [ "$DISTRO_FAMILY" = "arch" ] && [[ -s "$CHAOTIC_SEL" ]]; then
-    local pkgs_chaotic
-    pkgs_chaotic=$(sed 's#^#chaotic-aur/#' "$CHAOTIC_SEL" | tr '\n' ' ')
-    if [[ -n "$pkgs_chaotic" ]]; then
-      cmd_chain+="echo '=== INSTALANDO PAQUETES CHAOTIC-AUR ==='; pacman -S --needed --noconfirm $pkgs_chaotic || true; "
-    fi
-  fi
-
   if [[ -s "$FLATPAK_SEL" ]] && command -v flatpak &>/dev/null; then
     local pkgs_flatpak
     pkgs_flatpak=$(tr '\n' ' ' < "$FLATPAK_SEL")
@@ -614,14 +584,6 @@ desinstalar_paquetes() {
     pkgs_yay=$(tr '\n' ' ' < "$AUR_RM_SEL")
     if [[ -n "$pkgs_yay" ]]; then
       cmd_chain+="echo '=== DESINSTALANDO PAQUETES YAY (AUR) ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus yay -Rns --noconfirm $pkgs_yay || true; "
-    fi
-  fi
-
-  if [ "$DISTRO_FAMILY" = "arch" ] && [[ -s "$CHAOTIC_RM_SEL" ]]; then
-    local pkgs_chaotic
-    pkgs_chaotic=$(tr '\n' ' ' < "$CHAOTIC_RM_SEL")
-    if [[ -n "$pkgs_chaotic" ]]; then
-      cmd_chain+="echo '=== DESINSTALANDO PAQUETES CHAOTIC-AUR ==='; pacman -Rns --noconfirm $pkgs_chaotic || true; "
     fi
   fi
 
@@ -670,7 +632,6 @@ run_script_3() {
         if [ "$DISTRO_FAMILY" = "arch" ]; then
           selector_paquetes "Pacman (Nativos)" "$NATIVE_LIST" "$NATIVE_SEL" "pacman"
           selector_paquetes "Yay (AUR)" "$AUR_LIST" "$AUR_SEL" "yay"
-          selector_paquetes "Chaotic-AUR" "$CHAOTIC_LIST" "$CHAOTIC_SEL" "chaotic-aur"
         else
           selector_paquetes "APT (Nativos)" "$NATIVE_LIST" "$NATIVE_SEL" "apt"
         fi
@@ -681,7 +642,6 @@ run_script_3() {
         if [ "$DISTRO_FAMILY" = "arch" ]; then
           selector_paquetes "Pacman Remove" "$NATIVE_LIST" "$NATIVE_RM_SEL" "pacman"
           selector_paquetes "Yay Remove" "$AUR_LIST" "$AUR_RM_SEL" "yay"
-          selector_paquetes "Chaotic-AUR Remove" "$CHAOTIC_LIST" "$CHAOTIC_RM_SEL" "chaotic-aur"
         else
           selector_paquetes "APT Remove" "$NATIVE_LIST" "$NATIVE_RM_SEL" "apt"
         fi
