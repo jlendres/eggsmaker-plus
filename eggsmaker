@@ -1,14 +1,19 @@
 #!/bin/bash
 # ==============================================================================
 # Script: eggsmaker
-# Versión: 1.2.6
+# Versión: 1.2.8
 # Descripción: Suite integrada para administración de Penguins Eggs y Paquetes
 #              Soporte multi-distro nativo: Arch (pacman/yay) y Debian/Ubuntu (apt)
 # ==============================================================================
 
 set -euo pipefail
 
-VERSION="1.2.7"
+EGGSMAKER_VERSION="1.2.8"
+
+if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
+  printf 'Eggsmaker Plus %s\n' "$EGGSMAKER_VERSION"
+  exit 0
+fi
 
 # ------------------------------------------------------------------------------
 # Detección de Distribución y Gestor de Paquetes
@@ -191,7 +196,9 @@ run_in_terminal() {
 run_as_user() {
   local user_cmd="$1"
   if [ -n "${SUDO_USER:-}" ]; then
-    sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u "$REAL_USER")/bus" DISPLAY="${DISPLAY:-:0}" XAUTHORITY="${XAUTHORITY:-$REAL_HOME/.Xauthority}" bash -c "$user_cmd"
+    local real_uid
+    real_uid=$(id -u "$REAL_USER")
+    sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$real_uid/bus" XDG_RUNTIME_DIR="/run/user/$real_uid" DISPLAY="${DISPLAY:-:0}" XAUTHORITY="${XAUTHORITY:-$REAL_HOME/.Xauthority}" bash -c "$user_cmd"
   else
     bash -c "$user_cmd"
   fi
@@ -205,8 +212,8 @@ export -f run_as_user
 LANG_SYS="${LANG:-es}"
 
 if [[ "$LANG_SYS" =~ ^es ]]; then
-  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Versión $VERSION • Penguins Eggs $EGGS_VERSION • ISO, clonación y gestión de paquetes</small>\n"
-  TITLE_MAIN="Eggsmaker Plus v$VERSION"
+  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus <span foreground='#ff4d4f'>v$EGGSMAKER_VERSION</span></b></span>\n<small>Penguins Eggs: $EGGS_VERSION • ISO, clonación y gestión de paquetes</small>\n"
+  TITLE_MAIN="Eggsmaker Plus v$EGGSMAKER_VERSION"
   OPT_1_NAME="1. Generar ISO (Penguins Eggs)"
   OPT_1_DESC="Crear imagen ISO personalizada o clon del sistema"
   OPT_2_NAME="2. Instalación Live (Calamares / Krill)"
@@ -234,10 +241,12 @@ if [[ "$LANG_SYS" =~ ^es ]]; then
   S3_REC="Recopilar paquetes instalados"
   S3_SEL="Seleccionar paquetes"
   S3_EXE="Ejecutar proceso"
+  S3_CLEAR="Vaciar carpeta de listas"
+  S3_CLEAR_DESC="Eliminar todos los archivos de $TARGET_DIR"
   S3_BACK="Volver al menú anterior"
 else
-  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus</b></span>\n<small>Version $VERSION • Penguins Eggs $EGGS_VERSION • ISO, cloning, and package management</small>\n"
-  TITLE_MAIN="Eggsmaker Plus v$VERSION"
+  HEADER_TITLE="<span foreground='#7dd3fc' size='x-large'><b>Eggsmaker Plus <span foreground='#ff4d4f'>v$EGGSMAKER_VERSION</span></b></span>\n<small>Penguins Eggs: $EGGS_VERSION • ISO, cloning, and package management</small>\n"
+  TITLE_MAIN="Eggsmaker Plus v$EGGSMAKER_VERSION"
   OPT_1_NAME="1. Generate ISO (Penguins Eggs)"
   OPT_1_DESC="Create a custom ISO image or system clone"
   OPT_2_NAME="2. Live Installation (Calamares / Krill)"
@@ -265,6 +274,8 @@ else
   S3_REC="Collect installed packages"
   S3_SEL="Select packages"
   S3_EXE="Execute process"
+  S3_CLEAR="Empty package-list folder"
+  S3_CLEAR_DESC="Delete all files in $TARGET_DIR"
   S3_BACK="Back to main menu"
 fi
 
@@ -409,23 +420,16 @@ recopilar_listas() {
 
   if [ "$DISTRO_FAMILY" = "arch" ]; then
     # -Qqe incluye todos los paquetes instalados explícitamente (evita omitir sub-componentes o librerías de entornos de escritorio)
-    pacman -Qqe | sort | grep -vwE '^(base|base-devel)$' > "$NATIVE_LIST" || true
-    if command -v yay &>/dev/null; then
-      pacman -Qqem | sort > "$AUR_LIST" || true
-    fi
-
-    # Filtrar AUR del listado nativo antes de detectar repositorios sincronizados.
-    grep -vxf "$AUR_LIST" "$NATIVE_LIST" > "${NATIVE_LIST}.tmp" || true
-    mv "${NATIVE_LIST}.tmp" "$NATIVE_LIST"
-
+    local installed_list="${NATIVE_LIST}.installed"
+    local candidates_list="${NATIVE_LIST}.candidates"
     local chaotic_repo_list="${CHAOTIC_LIST}.repo"
+    pacman -Qqe | sort | grep -vwE '^(base|base-devel)$' > "$installed_list" || true
+    pacman -Qqem | sort > "$AUR_LIST" || true
+    grep -Fvx -f "$AUR_LIST" "$installed_list" > "$candidates_list" || true
     pacman -Sl chaotic-aur 2>/dev/null | awk '$1 == "chaotic-aur" { print $2 }' > "$chaotic_repo_list" || true
-    grep -Fxf "$chaotic_repo_list" "$NATIVE_LIST" > "$CHAOTIC_LIST" || true
-    rm -f "$chaotic_repo_list"
-
-    # Evitar duplicados entre los listados nativo y Chaotic-AUR.
-    grep -vxf "$CHAOTIC_LIST" "$NATIVE_LIST" > "${NATIVE_LIST}.tmp" || true
-    mv "${NATIVE_LIST}.tmp" "$NATIVE_LIST"
+    grep -Fxf "$chaotic_repo_list" "$candidates_list" > "$CHAOTIC_LIST" || true
+    grep -Fvx -f "$AUR_LIST" "$installed_list" | grep -Fvx -f "$CHAOTIC_LIST" > "$NATIVE_LIST" || true
+    rm -f "$installed_list" "$candidates_list" "$chaotic_repo_list"
   elif [ "$DISTRO_FAMILY" = "debian" ]; then
     if command -v apt-mark &>/dev/null; then
       apt-mark showmanual | sort > "$NATIVE_LIST" || true
@@ -541,41 +545,32 @@ selector_paquetes() {
 instalar_paquetes() {
   log_msg "Iniciando instalación desde $TARGET_DIR"
   local cmd_chain=""
+  local selection_file real_uid real_user_q
+  real_uid=$(id -u "$REAL_USER")
+  printf -v real_user_q '%q' "$REAL_USER"
 
   if [[ -s "$NATIVE_SEL" ]]; then
-    local pkgs_native
-    pkgs_native=$(tr '\n' ' ' < "$NATIVE_SEL")
-    if [[ -n "$pkgs_native" ]]; then
-      if [ "$DISTRO_FAMILY" = "arch" ]; then
-        cmd_chain+="echo '=== INSTALANDO PAQUETES PACMAN ==='; pacman -S --needed --noconfirm $pkgs_native || true; "
-      elif [ "$DISTRO_FAMILY" = "debian" ]; then
-        cmd_chain+="echo '=== INSTALANDO PAQUETES APT ==='; apt-get update && apt-get install -y $pkgs_native || true; "
-      fi
+    printf -v selection_file '%q' "$NATIVE_SEL"
+    if [ "$DISTRO_FAMILY" = "arch" ]; then
+      cmd_chain+="echo '=== INSTALANDO PAQUETES PACMAN ==='; while IFS= read -r pkg; do [[ -n \"\$pkg\" ]] || continue; pacman -S --needed --noconfirm \"\$pkg\" || echo \"ERROR: No se pudo instalar \$pkg\"; done < $selection_file; "
+    elif [ "$DISTRO_FAMILY" = "debian" ]; then
+      cmd_chain+="echo '=== INSTALANDO PAQUETES APT ==='; apt-get update || echo 'ERROR: No se pudieron actualizar los índices APT'; while IFS= read -r pkg; do [[ -n \"\$pkg\" ]] || continue; apt-get install -y \"\$pkg\" || echo \"ERROR: No se pudo instalar \$pkg\"; done < $selection_file; "
     fi
   fi
 
   if [ "$DISTRO_FAMILY" = "arch" ] && [[ -s "$AUR_SEL" ]] && command -v yay &>/dev/null; then
-    local pkgs_yay
-    pkgs_yay=$(tr '\n' ' ' < "$AUR_SEL")
-    if [[ -n "$pkgs_yay" ]]; then
-      cmd_chain+="echo '=== INSTALANDO PAQUETES YAY (AUR) ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus yay -S --needed --noconfirm $pkgs_yay || true; "
-    fi
+    printf -v selection_file '%q' "$AUR_SEL"
+    cmd_chain+="echo '=== INSTALANDO PAQUETES YAY (AUR) ==='; while IFS= read -r pkg; do [[ -n \"\$pkg\" ]] || continue; sudo -u $real_user_q env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$real_uid/bus XDG_RUNTIME_DIR=/run/user/$real_uid yay -S --needed --noconfirm \"\$pkg\" || echo \"ERROR: No se pudo instalar \$pkg desde AUR\"; done < $selection_file; "
   fi
 
   if [ "$DISTRO_FAMILY" = "arch" ] && [[ -s "$CHAOTIC_SEL" ]]; then
-    local pkgs_chaotic
-    pkgs_chaotic=$(sed 's#^#chaotic-aur/#' "$CHAOTIC_SEL" | tr '\n' ' ')
-    if [[ -n "$pkgs_chaotic" ]]; then
-      cmd_chain+="echo '=== INSTALANDO PAQUETES CHAOTIC-AUR ==='; pacman -S --needed --noconfirm $pkgs_chaotic || true; "
-    fi
+    printf -v selection_file '%q' "$CHAOTIC_SEL"
+    cmd_chain+="echo '=== INSTALANDO PAQUETES CHAOTIC-AUR ==='; while IFS= read -r pkg; do [[ -n \"\$pkg\" ]] || continue; pacman -S --needed --noconfirm \"chaotic-aur/\$pkg\" || echo \"ERROR: No se pudo instalar \$pkg desde Chaotic-AUR\"; done < $selection_file; "
   fi
 
   if [[ -s "$FLATPAK_SEL" ]] && command -v flatpak &>/dev/null; then
-    local pkgs_flatpak
-    pkgs_flatpak=$(tr '\n' ' ' < "$FLATPAK_SEL")
-    if [[ -n "$pkgs_flatpak" ]]; then
-      cmd_chain+="echo '=== INSTALANDO FLATPAKS ==='; sudo -u $REAL_USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u $REAL_USER)/bus flatpak install -y $pkgs_flatpak || true; "
-    fi
+    printf -v selection_file '%q' "$FLATPAK_SEL"
+    cmd_chain+="echo '=== INSTALANDO FLATPAKS ==='; while IFS= read -r pkg; do [[ -n \"\$pkg\" ]] || continue; sudo -u $real_user_q env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$real_uid/bus XDG_RUNTIME_DIR=/run/user/$real_uid flatpak install --user --noninteractive -y \"\$pkg\" || echo \"ERROR: No se pudo instalar el Flatpak \$pkg\"; done < $selection_file; "
   fi
 
   if [[ -n "$cmd_chain" ]]; then
@@ -648,16 +643,29 @@ desinstalar_paquetes() {
     --button="Aceptar:0" 2>/dev/null || true
 }
 
+vaciar_carpeta_listas() {
+  if ! yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" --image="dialog-warning" \
+    --text="${S3_CLEAR_DESC}. Esta acción no se puede deshacer." \
+    --button="Cancelar:1" --button="Vaciar:0" 2>/dev/null; then
+    return
+  fi
+
+  find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  yad --window-icon="$WINDOW_ICON" --title="$S3_TITLE" --image="dialog-information" \
+    --text="La carpeta $TARGET_DIR está vacía." --button="Aceptar:0" 2>/dev/null || true
+}
+
 run_script_3() {
   while true; do
-    ACTION=$(yad --window-icon="$WINDOW_ICON" --list --title="$S3_TITLE" --width=520 --height=350 \
+    ACTION=$(yad --window-icon="$WINDOW_ICON" --list --title="$S3_TITLE" --width=520 --height=390 \
       --column="Acción" --column="Descripción" \
       "1. $S3_REC" "Generar archivos en $TARGET_DIR" \
       "2. $S3_SEL (Instalar)" "Elegir paquetes para instalar" \
       "3. $S3_EXE (Instalar)" "Ejecutar la instalación" \
       "4. $S3_SEL (Desinstalar)" "Elegir paquetes para remover" \
       "5. $S3_EXE (Desinstalar)" "Ejecutar la desinstalación" \
-      "6. $S3_BACK" "Regresar al menú principal" \
+      "6. $S3_CLEAR" "$S3_CLEAR_DESC" \
+      "7. $S3_BACK" "Regresar al menú principal" \
       --print-column=1 2>/dev/null || true)
 
     if [[ -z "$ACTION" ]]; then
@@ -688,7 +696,8 @@ run_script_3() {
         selector_paquetes "Flatpak Remove" "$FLATPAK_LIST" "$FLATPAK_RM_SEL" "flatpak"
         ;;
       5.*) desinstalar_paquetes ;;
-      6.*) break ;;
+      6.*) vaciar_carpeta_listas ;;
+      7.*) break ;;
       *) break ;;
     esac
   done
